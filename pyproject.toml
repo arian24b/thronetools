@@ -1,6 +1,6 @@
 [project]
 name = "thronetools"
-version = "0.1.0"
+version = "1.0.0"
 description = "Cross-platform installer and management CLI for Throne"
 readme = "README.md"
 requires-python = ">=3.10"
