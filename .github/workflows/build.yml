@@ -40,3 +40,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           semantic-release version --changelog --tag
+      - name: Build
+        run: uv build
+      - name: Publish
+        run: uv publish
