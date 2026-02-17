@@ -13,6 +13,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
 
     steps:
       - name: Checkout repository
@@ -42,5 +44,5 @@ jobs:
           semantic-release version --changelog --tag
       - name: Build
         run: uv build
-      - name: Publish
-        run: uv publish
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
