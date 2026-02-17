@@ -1,0 +1,80 @@
+[project]
+name = "thronetools"
+version = "0.1.0"
+description = "Cross-platform installer and management CLI for Throne"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Arian Omrani", email = "arian24b@gmail.com"}
+]
+license = "MIT"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+keywords = ["throne", "cli", "installer", "hotspot", "proxy"]
+dependencies = [
+    "typer>=0.23.1",
+]
+
+[project.scripts]
+thronetools = "thronetools:main"
+
+[project.urls]
+Homepage = "https://github.com/arian24b/thronetools"
+Repository = "https://github.com/arian24b/thronetools"
+Issues = "https://github.com/arian24b/thronetools/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.semantic_release]
+commit_parser = "conventional"
+commit_author = "Arian Omrani <arian24b@gmail.com>"
+branch = "main"
+version_toml = ["pyproject.toml:project.version"]
+upload_to_vcs_release = false
+build_command = "uv build"
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+respect-gitignore = true
+fix = true
+show-fixes = true
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "S",      # bandit
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez
+    "T20",    # flake8-print
+    "SIM",    # flake8-simplify
+    "LOG",    # flake8-logging
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "S101",   # Use of assert detected (needed for tests)
+    "T20",    # print statements (CLI tool)
+    "A003",   # Class attribute shadows builtin
+]
