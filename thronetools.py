@@ -18,6 +18,9 @@ from urllib.request import Request, urlopen
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import typer
+from rich.console import Console
+
+console = Console()
 
 THRONE_URL = "https://api.github.com/repos/throneproj/Throne/releases/latest"
 THRONE_APP_NAME = "Throne"
@@ -1374,6 +1377,8 @@ def main() -> None:
     info_parser = subparsers.add_parser("info", help="Show installed version and path")
     info_parser.add_argument("--app", choices=["throne", "nekoray"], required=True)
 
+    subparsers.add_parser("version", help="Show version information")
+
     hotspot_parser = subparsers.add_parser("hotspot", help="Hotspot controls")
     hotspot_sub = hotspot_parser.add_subparsers(dest="hotspot_command")
     hotspot_enable = hotspot_sub.add_parser("enable", help="Enable hotspot")
@@ -1488,6 +1493,8 @@ def main() -> None:
         elif args.command == "hotspot":
             typer.echo(color("Hotspot commands are supported on Linux/macOS only.", RED))
             sys_exit(1)
+        elif args.command == "version":
+            show_banner(sys_platform)
         else:
             parser.print_help()
     else:
@@ -1498,6 +1505,11 @@ def main() -> None:
             ),
         )
         sys_exit(1)
+
+
+def version_cmd() -> None:
+    """Show version information."""
+    show_banner(sys_platform)
 
 
 if __name__ == "__main__":

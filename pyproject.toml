@@ -22,6 +22,7 @@ classifiers = [
 keywords = ["throne", "cli", "installer", "hotspot", "proxy"]
 dependencies = [
     "typer>=0.24.0",
+    "rich>=13.0.0",
 ]
 
 [project.scripts]
