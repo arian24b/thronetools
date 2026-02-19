@@ -89,15 +89,11 @@ name = "thronetools"
 version = "1.0.4"
 source = { editable = "." }
 dependencies = [
-    { name = "rich" },
     { name = "typer" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "rich", specifier = ">=13.0.0" },
-    { name = "typer", specifier = ">=0.24.0" },
-]
+requires-dist = [{ name = "typer", specifier = ">=0.24.0" }]
 
 [[package]]
 name = "typer"
