@@ -21,11 +21,12 @@ classifiers = [
 ]
 keywords = ["throne", "cli", "installer", "hotspot", "proxy"]
 dependencies = [
+    "rich>=14.3.3",
     "typer>=0.24.0",
 ]
 
 [project.scripts]
-thronetools = "thronetools:main"
+thronetools = "thronetools:app"
 
 [project.urls]
 Homepage = "https://github.com/arian24b/thronetools"

@@ -77,6 +77,14 @@ uv run ruff format .
 uv build
 ```
 
+## Related Projects
+
+Explore other CLI tools by Arian Omrani:
+
+- **[LinkCovery](https://github.com/arian24b/linkcovery)** - Modern bookmark management CLI tool
+- **[PEM](https://github.com/arian24b/pem)** - Python Execution Manager - Schedule and execute Python scripts
+- **[OllamaTools](https://github.com/arian24b/ollamatools)** - CLI tool for managing Ollama models
+
 ## Install as a tool (optional)
 
 If you want a globally available command via `uv`:
