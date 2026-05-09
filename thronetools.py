@@ -6,7 +6,8 @@ from json import loads
 from platform import machine
 from plistlib import InvalidFileException
 from plistlib import load as plistlib_load
-from re import IGNORECASE, compile, escape
+from re import IGNORECASE, escape
+from re import compile as re_compile
 from shlex import quote
 from shutil import move, rmtree, which
 from subprocess import CalledProcessError, CompletedProcess, Popen, run
@@ -25,6 +26,7 @@ LINUX_TUN_IFACE = "nekoray-tun"
 LINUX_NFT_TABLE = "throne_hotspot"
 LINUX_REQUIRED_INET_TABLE = "sing-box"
 HTTP_TIMEOUT = 15
+MIN_PASSWORD_LENGTH = 8
 
 
 GREEN = "\033[0;32m"
@@ -158,7 +160,7 @@ class LinuxService(PlatformService):
         release = github_latest_release()
         assets = release.get("assets", [])
         target_asset = None
-        pattern = compile(package_pattern)
+        pattern = re_compile(package_pattern)
         for asset in assets:
             name = asset.get("name", "")
             if pattern.search(name):
@@ -359,7 +361,7 @@ class LinuxService(PlatformService):
         typer.echo()
 
     def version(self, exe_path: str) -> str:
-        pass
+        return ""
 
     def enable_hotspot(
         self,
@@ -424,12 +426,12 @@ class LinuxService(PlatformService):
         typer.echo(color("✅ Starting hotspot...", GREEN))
         if not password:
             while True:
-                password = getpass("\n🔒 Enter hotspot password (min 8 chars): ")
-                if len(password) >= 8:
+                password = getpass(f"\n🔒 Enter hotspot password (min {MIN_PASSWORD_LENGTH} chars): ")
+                if len(password) >= MIN_PASSWORD_LENGTH:
                     break
-                typer.echo(color("❌ Password must be at least 8 characters.", RED))
-        if len(password) < 8:
-            typer.echo(color("❌ Password must be at least 8 characters.", RED))
+                typer.echo(color(f"❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.", RED))
+        if len(password) < MIN_PASSWORD_LENGTH:
+            typer.echo(color(f"❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.", RED))
             sys_exit(1)
 
         ssid = ssid or LINUX_SSID
@@ -557,7 +559,7 @@ class MacOSService(PlatformService):
         assets = release.get("assets", [])
 
         arch = machine()
-        pattern = compile(rf"{escape(THRONE_APP_NAME)}.*macos-{escape(arch)}\.zip")
+        pattern = re_compile(rf"{escape(THRONE_APP_NAME)}.*macos-{escape(arch)}\.zip")
         target_asset = None
         for asset in assets:
             name = asset.get("name", "")
@@ -756,12 +758,12 @@ class MacOSService(PlatformService):
 
         if not password:
             while True:
-                password = getpass("\n🔒 Enter hotspot password (min 8 chars): ")
-                if len(password) >= 8:
+                password = getpass(f"\n🔒 Enter hotspot password (min {MIN_PASSWORD_LENGTH} chars): ")
+                if len(password) >= MIN_PASSWORD_LENGTH:
                     break
-                typer.echo(color("❌ Password must be at least 8 characters.", RED))
-        if len(password) < 8:
-            typer.echo(color("❌ Password must be at least 8 characters.", RED))
+                typer.echo(color(f"❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.", RED))
+        if len(password) < MIN_PASSWORD_LENGTH:
+            typer.echo(color(f"❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.", RED))
             sys_exit(1)
 
         typer.echo(color("✅ Enabling Wi-Fi...", GREEN))
@@ -839,8 +841,8 @@ class WindowsService(PlatformService):
             typer.echo(color("No Windows installer found in the latest release.", RED))
             sys_exit(1)
 
-        installer_url = target_asset.get("browser_download_url")
-        installer_name = target_asset.get("name")
+        installer_url = target_asset.get("browser_download_url", "")
+        installer_name = target_asset.get("name", "")
         temp_dir = gettempdir()
         installer_path = os.path.join(temp_dir, "throne_installer.exe")
 
@@ -936,8 +938,8 @@ class WindowsService(PlatformService):
             rmtree(config_dir)
 
         local_appdata = os.environ.get("LOCALAPPDATA", "")
-        program_files = os.environ.get("ProgramFiles", "")
-        program_files_x86 = os.environ.get("ProgramFiles(x86)", "")
+        program_files = os.environ.get("PROGRAMFILES", "")
+        program_files_x86 = os.environ.get("PROGRAMFILES(X86)", "")
 
         uninstallers = []
         if app_name == "throne":
@@ -1002,17 +1004,17 @@ class WindowsService(PlatformService):
         typer.echo()
 
 
-def color(text, shade) -> str:
+def color(text: str, shade: str) -> str:
     return f"{shade}{text}{NC}"
 
 
-def show_banner(platform_name) -> None:
+def show_banner(platform_name: str) -> None:
     typer.echo(color(BANNER, YELLOW))
     typer.echo(color(f"{THRONE_APP_NAME} Installer for {platform_name}", BLUE))
     typer.echo()
 
 
-def prompt_app_name(prompt_text):
+def prompt_app_name(prompt_text: str) -> str:
     app_name = input(prompt_text).strip().lower()
     if app_name not in {"nekoray", "throne"}:
         typer.echo(color("Invalid app name. Only 'nekoray' or 'throne' allowed.", RED))
@@ -1020,7 +1022,7 @@ def prompt_app_name(prompt_text):
     return app_name
 
 
-def run_cmd(cmd, dry_run=False, shell=False, check=True):
+def run_cmd(cmd: str | list[str], dry_run: bool = False, shell: bool = False, check: bool = True) -> CompletedProcess:
     if dry_run:
         if isinstance(cmd, list):
             typer.echo(color("→ " + " ".join(cmd), BLUE))
@@ -1030,11 +1032,11 @@ def run_cmd(cmd, dry_run=False, shell=False, check=True):
     return run(cmd, shell=shell, check=check)
 
 
-def run_capture(cmd):
-    return run(cmd, text=True, capture_output=True)
+def run_capture(cmd: str | list[str]) -> CompletedProcess:
+    return run(cmd, text=True, capture_output=True, check=False)
 
 
-def read_os_release():
+def read_os_release() -> dict[str, str]:
     os_release = "/etc/os-release"
     data = {}
     if not os.path.exists(os_release):
@@ -1049,7 +1051,7 @@ def read_os_release():
     return data
 
 
-def check_installations(app_name):
+def check_installations(app_name: str) -> bool:
     found = False
     if which("dpkg"):
         res = run_capture(["dpkg", "-l"])
@@ -1082,7 +1084,7 @@ def check_installations(app_name):
     return found
 
 
-def github_latest_release():
+def github_latest_release() -> dict:
     req = Request(
         THRONE_URL,
         headers={
@@ -1095,7 +1097,7 @@ def github_latest_release():
     return loads(data.decode("utf-8"))
 
 
-def download_file(url, dest_path) -> None:
+def download_file(url: str, dest_path: str) -> None:
     req = Request(url, headers={"User-Agent": "ThroneTools"})
     with (
         urlopen(req, timeout=HTTP_TIMEOUT) as response,
@@ -1108,7 +1110,7 @@ def download_file(url, dest_path) -> None:
             handle.write(chunk)
 
 
-def zip_dir(source_dir, dest_zip) -> None:
+def zip_dir(source_dir: str, dest_zip: str) -> None:
     with ZipFile(dest_zip, "w", compression=ZIP_DEFLATED) as handle:
         for root, _, files in os.walk(source_dir):
             for file_name in files:
@@ -1117,7 +1119,7 @@ def zip_dir(source_dir, dest_zip) -> None:
                 handle.write(full_path, rel_path)
 
 
-def ensure_linux_command(cmd, hint=None) -> bool:
+def ensure_linux_command(cmd: str, hint: str | None = None) -> bool:
     if which(cmd):
         return True
     typer.echo(color(f"❌ '{cmd}' command not found. Please install it.", RED))
@@ -1126,7 +1128,7 @@ def ensure_linux_command(cmd, hint=None) -> bool:
     return False
 
 
-def detect_wifi_iface():
+def detect_wifi_iface() -> str:
     res = run_capture(["nmcli", "device", "status"])
     if res.returncode != 0:
         return ""
@@ -1137,7 +1139,7 @@ def detect_wifi_iface():
     return ""
 
 
-def find_linux_wifi_iface(requested_iface):
+def find_linux_wifi_iface(requested_iface: str | None) -> str:
     if not requested_iface:
         return detect_wifi_iface()
     res = run_capture(["nmcli", "-t", "-f", "DEVICE,TYPE", "device"])
@@ -1152,7 +1154,7 @@ def find_linux_wifi_iface(requested_iface):
     return ""
 
 
-def detect_macos_wifi_iface():
+def detect_macos_wifi_iface() -> str:
     res = run_capture(["networksetup", "-listallhardwareports"])
     if res.returncode != 0:
         return ""
@@ -1167,8 +1169,8 @@ def detect_macos_wifi_iface():
     return ""
 
 
-def find_windows_installer_asset(assets):
-    pattern = compile(r"windows.*installer\.exe$", IGNORECASE)
+def find_windows_installer_asset(assets: list) -> dict | None:
+    pattern = re_compile(r"windows.*installer\.exe$", IGNORECASE)
     for asset in assets:
         name = asset.get("name", "")
         if pattern.search(name):
@@ -1176,7 +1178,7 @@ def find_windows_installer_asset(assets):
     return None
 
 
-def windows_config_base(app_name):
+def windows_config_base(app_name: str) -> str:
     appdata = os.environ.get("APPDATA")
     if not appdata:
         return ""
@@ -1185,7 +1187,7 @@ def windows_config_base(app_name):
     return os.path.join(appdata, "nekoray")
 
 
-def linux_install_paths(app_name):
+def linux_install_paths(app_name: str) -> list[str]:
     variants = ["Throne", "throne"] if app_name == "throne" else ["NekoRay", "nekoray"]
     paths = []
     for variant in variants:
@@ -1203,7 +1205,7 @@ def linux_install_paths(app_name):
     return [path for path in paths if os.path.exists(path)]
 
 
-def macos_app_bundle(app_name):
+def macos_app_bundle(app_name: str) -> str:
     candidates = ["Throne.app"] if app_name == "throne" else ["NekoRay.app", "nekoray.app"]
     for name in candidates:
         path = os.path.join("/Applications", name)
@@ -1212,7 +1214,7 @@ def macos_app_bundle(app_name):
     return ""
 
 
-def macos_app_version(app_bundle):
+def macos_app_version(app_bundle: str) -> str:
     info_plist = os.path.join(app_bundle, "Contents", "Info.plist")
     if not os.path.isfile(info_plist):
         return ""
@@ -1224,7 +1226,7 @@ def macos_app_version(app_bundle):
     return data.get("CFBundleShortVersionString") or data.get("CFBundleVersion") or ""
 
 
-def linux_package_version(app_name):
+def linux_package_version(app_name: str) -> str:
     if which("dpkg"):
         res = run_capture(["dpkg", "-s", app_name])
         if res.returncode == 0:
@@ -1238,10 +1240,10 @@ def linux_package_version(app_name):
     return ""
 
 
-def windows_exe_candidates(app_name):
+def windows_exe_candidates(app_name: str) -> list[str]:
     local_appdata = os.environ.get("LOCALAPPDATA", "")
-    program_files = os.environ.get("ProgramFiles", "")
-    program_files_x86 = os.environ.get("ProgramFiles(x86)", "")
+    program_files = os.environ.get("PROGRAMFILES", "")
+    program_files_x86 = os.environ.get("PROGRAMFILES(X86)", "")
     exe_name = "Throne.exe" if app_name == "throne" else "NekoRay.exe"
     app_dir = "Throne" if app_name == "throne" else "NekoRay"
     return [
@@ -1251,7 +1253,7 @@ def windows_exe_candidates(app_name):
     ]
 
 
-def windows_exe_version(exe_path):
+def windows_exe_version(exe_path: str) -> str:
     if not exe_path:
         return ""
     escaped = exe_path.replace("'", "''")
