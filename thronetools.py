@@ -46,14 +46,12 @@ BANNER = r"""
    ██║   ██╔══██║██╔══██╗██║   ██║██║╚██╗██║██╔══╝
    ██║   ██║  ██║██║  ██║╚██████╔╝██║ ╚████║███████╗
    ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
-
-████████╗ ██████╗  ██████╗ ██╗     ███████╗
-╚══██╔══╝██╔═══██╗██╔═══██╗██║     ██╔════╝
-   ██║   ██║   ██║██║   ██║██║     ███████╗
-   ██║   ██║   ██║██║   ██║██║     ╚════██║
-   ██║   ╚██████╔╝╚██████╔╝███████╗███████║
-   ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚══════╝
-
+    ████████╗ ██████╗  ██████╗ ██╗     ███████╗
+    ╚══██╔══╝██╔═══██╗██╔═══██╗██║     ██╔════╝
+       ██║   ██║   ██║██║   ██║██║     ███████╗
+       ██║   ██║   ██║██║   ██║██║     ╚════██║
+       ██║   ╚██████╔╝╚██████╔╝███████╗███████║
+       ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚══════╝
 
 
 """
@@ -86,10 +84,7 @@ class PlatformService(ABC):
     ) -> None: ...
 
     @abstractmethod
-    def info(self, app_name: str) -> None: ...
-
-    @abstractmethod
-    def version(self, exe_path: str) -> str: ...
+    def version(self, app_name: str) -> None: ...
 
     # Optional: hotspot support (can raise NotImplementedError on Windows)
     def enable_hotspot(
@@ -349,19 +344,12 @@ class LinuxService(PlatformService):
         if backup_path:
             self.restore(app_name=app_name, zip_file=backup_path)
 
-    def info(self, app_name: str) -> None:
-        typer.echo(color("=== INFO ===", BLUE))
-        typer.echo()
+    def version(self, app_name: str) -> None:
         version = linux_package_version(app_name) or "unknown"
         paths = linux_install_paths(app_name)
-        install_path = paths[0] if paths else "not found"
         typer.echo(f"App: {app_name}")
         typer.echo(f"Version: {version}")
-        typer.echo(f"Install path: {install_path}")
-        typer.echo()
-
-    def version(self, exe_path: str) -> str:
-        return ""
+        typer.echo(f"Install path: {paths[0] if paths else 'not found'}")
 
     def enable_hotspot(
         self,
@@ -712,8 +700,8 @@ class MacOSService(PlatformService):
         if backup_path:
             self.restore(app_name=app_name, zip_file=backup_path)
 
-    def info(self, app_name: str) -> None:
-        typer.echo(color("=== INFO ===", BLUE))
+    def version(self, app_name: str) -> None:
+        typer.echo(color("=== Version ===", BLUE))
         typer.echo()
         app_bundle = macos_app_bundle(app_name)
         version = macos_app_version(app_bundle) if app_bundle else ""
@@ -992,8 +980,8 @@ class WindowsService(PlatformService):
         if backup_path:
             self.restore(app_name=app_name, zip_file=backup_path)
 
-    def info(self, app_name: str) -> None:
-        typer.echo(color("=== INFO ===", BLUE))
+    def version(self, app_name: str) -> None:
+        typer.echo(color("=== Version ===", BLUE))
         typer.echo()
         candidates = windows_exe_candidates(app_name)
         exe_path = next((path for path in candidates if os.path.isfile(path)), "")
@@ -1008,10 +996,10 @@ def color(text: str, shade: str) -> str:
     return f"{shade}{text}{NC}"
 
 
-def show_banner(platform_name: str) -> None:
+def show_banner(platform_name) -> None:
+    typer.clear()
     typer.echo(color(BANNER, YELLOW))
-    typer.echo(color(f"{THRONE_APP_NAME} Installer for {platform_name}", BLUE))
-    typer.echo()
+    typer.echo(color(f"{THRONE_APP_NAME} Tools for {platform_name}", BLUE))
 
 
 def prompt_app_name(prompt_text: str) -> str:
@@ -1281,10 +1269,13 @@ def get_service() -> PlatformService:
     raise typer.Exit(1)
 
 
-app = typer.Typer(help="Throne management tool.", invoke_without_command=True)
+app = typer.Typer(
+    invoke_without_command=True,
+    no_args_is_help=True,
+)
 
 
-@app.callback(invoke_without_command=True)
+@app.callback()
 def main(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         show_banner(get_service().platform_name)
@@ -1340,18 +1331,12 @@ def reinstall(
 
 
 @app.command()
-def info(
-    app: str = typer.Option(..., "--app", help="throne or nekoray"),
+def version(
+    app: str = typer.Option("throne", "--app", help="throne or nekoray"),
 ) -> None:
     """Show installed version and path."""
-    show_banner(get_service().platform_name)
-    get_service().info(app_name=app)
-
-
-@app.command()
-def version() -> None:
-    """Show version information."""
-    show_banner(get_service().platform_name)
+    # show_banner(get_service().platform_name)
+    get_service().version(app_name=app)
 
 
 hotspot_app = typer.Typer(help="Hotspot controls (Linux/macOS only)")
