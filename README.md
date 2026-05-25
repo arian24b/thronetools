@@ -1,11 +1,15 @@
 # ThroneTools
 
-Cross-platform CLI to install, reinstall, uninstall, and manage configuration for **Throne** and **NekoRay** on Linux, macOS, and Windows.
+Cross-platform CLI to install, reinstall, uninstall, and manage configuration for **Throne**(NekoRay) on Linux, macOS, and Windows.
 
 ## Requirements
 
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/)
+
+## Features
+
+- **Cross-platform** — Linux, macOS, and Windows support
 
 ## Quick Start (uv)
 
@@ -15,12 +19,10 @@ uv sync
 uv run thronetools --help
 ```
 
-### Interactive mode
-
-Run without subcommands to open the interactive menu:
+Run without subcommands to show the styled help:
 
 ```bash
-uv run python thronetools.py
+uv run thronetools
 ```
 
 ## Commands
@@ -31,7 +33,7 @@ thronetools backup --app {throne|nekoray} [--output <path-or-dir>]
 thronetools restore --app {throne|nekoray} --zip <backup.zip>
 thronetools remove --app {throne|nekoray}
 thronetools reinstall --app {throne|nekoray} [--backup] [--output <path-or-dir>] [--force]
-thronetools info --app {throne|nekoray}
+thronetools version --app {throne|nekoray}
 thronetools hotspot enable [--iface <iface>] [--ssid <name>] [--password <pass>] [--dry-run]
 thronetools hotspot disable [--dry-run]
 ```
@@ -55,7 +57,7 @@ uv run thronetools restore --app throne --zip ~/Backups/throne-backup-2026-02-17
 uv run thronetools reinstall --app throne --backup
 
 # Show installed app details
-uv run thronetools info --app throne
+uv run thronetools version --app throne
 
 # Preview hotspot commands without applying changes
 uv run thronetools hotspot enable --iface wlp2s0 --dry-run
@@ -99,3 +101,11 @@ To update later:
 ```bash
 uv tool upgrade thronetools
 ```
+
+## License
+
+MIT License — see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Feel free to submit a pull request.
