@@ -1,7 +1,6 @@
 import os
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
-from getpass import getpass
 from json import loads
 from platform import machine
 from plistlib import InvalidFileException
@@ -18,6 +17,14 @@ from urllib.request import Request, urlopen
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import typer
+import typer.core
+from rich import box
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Confirm, Prompt
+from rich.table import Table
+
+console = Console()
 
 THRONE_URL = "https://api.github.com/repos/throneproj/Throne/releases/latest"
 THRONE_APP_NAME = "Throne"
@@ -29,17 +36,7 @@ HTTP_TIMEOUT = 15
 MIN_PASSWORD_LENGTH = 8
 
 
-GREEN = "\033[0;32m"
-BLUE = "\033[0;34m"
-YELLOW = "\033[1;33m"
-RED = "\033[0;31m"
-NC = "\033[0m"
-BOLD = "\033[1m"
-
-
 BANNER = r"""
-
-
 ████████╗██╗  ██╗██████╗  ██████╗ ███╗   ██╗███████╗
 ╚══██╔══╝██║  ██║██╔══██╗██╔═══██╗████╗  ██║██╔════╝
    ██║   ███████║██████╔╝██║   ██║██╔██╗ ██║█████╗
@@ -52,8 +49,6 @@ BANNER = r"""
        ██║   ██║   ██║██║   ██║██║     ╚════██║
        ██║   ╚██████╔╝╚██████╔╝███████╗███████║
        ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚══════╝
-
-
 """
 
 
@@ -108,26 +103,24 @@ class LinuxService(PlatformService):
         return "Linux"
 
     def install(self) -> None:
-        typer.echo(color("=== INSTALLATION ===", BLUE))
-        typer.echo()
-        typer.echo("Checking for existing Throne installations...")
+        console.print("[blue]=== INSTALLATION ===[/blue]")
+        console.print()
+        console.print("Checking for existing Throne installations...")
         if check_installations("throne") or check_installations("nekoray"):
-            typer.echo(
-                color(
-                    "Please uninstall existing Throne or NekoRay installations first using option 4 (Uninstall).",
-                    YELLOW,
-                ),
+            console.print(
+                "[yellow]Please uninstall existing Throne or NekoRay installations first "
+                "using option 4 (Uninstall).[/yellow]",
             )
-            typer.echo()
+            console.print()
             return
 
-        typer.echo(color("✅ No existing installations found. Proceeding with installation...", GREEN))
-        typer.echo()
+        console.print("[green]✅ No existing installations found. Proceeding with installation...[/green]")
+        console.print()
 
         os_release = read_os_release()
         distro = os_release.get("ID", "").lower()
         if not distro:
-            typer.echo(color("Cannot detect Linux distribution.", RED))
+            console.print("[red]Cannot detect Linux distribution.[/red]")
             sys_exit(1)
 
         if distro in {"ubuntu", "debian", "linuxmint", "pop"}:
@@ -143,15 +136,15 @@ class LinuxService(PlatformService):
             fix_cmd = ["sudo", "dnf", "install", "-y"]
             package_pattern = r"Throne.*\.el.*\.rpm"
         else:
-            typer.echo(color(f"Unsupported distribution: {distro}", RED))
-            typer.echo(color("Supported distributions: Ubuntu, Debian, Fedora, RHEL, CentOS", RED))
+            console.print(f"[red]Unsupported distribution: {distro}[/red]")
+            console.print("[red]Supported distributions: Ubuntu, Debian, Fedora, RHEL, CentOS[/red]")
             sys_exit(1)
 
         if not which(package_manager):
-            typer.echo(color(f"{package_manager} is not installed.", RED))
+            console.print(f"[red]{package_manager} is not installed.[/red]")
             sys_exit(1)
 
-        typer.echo("Fetching latest Throne release information...")
+        console.print("Fetching latest Throne release information...")
         release = github_latest_release()
         assets = release.get("assets", [])
         target_asset = None
@@ -163,45 +156,39 @@ class LinuxService(PlatformService):
                 break
 
         if not target_asset:
-            typer.echo(color(f"Could not find {package_type} package in the latest release.", RED))
-            typer.echo(color("Available packages:", RED))
+            console.print(f"[red]Could not find {package_type} package in the latest release.[/red]")
+            console.print("[red]Available packages:[/red]")
             for asset in assets:
-                typer.echo(asset.get("name", ""))
+                console.print(asset.get("name", ""))
             sys_exit(1)
 
         package_url = target_asset.get("browser_download_url")
         package_name = target_asset.get("name")
-        typer.echo(f"Downloading {package_name}...")
+        console.print(f"Downloading {package_name}...")
 
         with TemporaryDirectory() as tmpdir:
             dest = os.path.join(tmpdir, package_name)
             download_file(package_url, dest)
-            typer.echo(f"Installing Throne {package_type} package...")
+            console.print(f"Installing Throne {package_type} package...")
             try:
                 run_cmd([*install_cmd, dest], check=True)
-                typer.echo(color("✅ Throne installed successfully!", GREEN))
+                console.print("[green]✅ Throne installed successfully![/green]")
             except CalledProcessError:
-                typer.echo(
-                    color(
-                        "Installation completed with some warnings. Fixing dependencies...",
-                        YELLOW,
-                    ),
+                console.print(
+                    "[yellow]Installation completed with some warnings. Fixing dependencies...[/yellow]",
                 )
                 run_cmd(fix_cmd, check=False)
 
-        typer.echo()
-        typer.echo(
-            color(
-                "✅ Done! Throne has been installed system-wide. You can find it in your applications menu!",
-                GREEN,
-            ),
+        console.print()
+        console.print(
+            "[green]✅ Done! Throne has been installed system-wide. You can find it in your applications menu![/green]",
         )
-        typer.echo()
+        console.print()
 
     def backup(self, app_name: str, output_path: str | None) -> str:
-        typer.echo(color("=== BACKUP CONFIGURATION ===", BLUE))
+        console.print("[blue]=== BACKUP CONFIGURATION ===[/blue]")
 
-        typer.echo()
+        console.print()
         if not app_name:
             app_name = prompt_app_name("👉 Enter which app (nekoray, throne): ")
 
@@ -216,7 +203,7 @@ class LinuxService(PlatformService):
                 config_dir = candidate
 
         if not config_dir or not os.path.isdir(config_dir):
-            typer.echo(color(f"Config directory does not exist: {config_dir}", RED))
+            console.print(f"[red]Config directory does not exist: {config_dir}[/red]")
             sys_exit(1)
 
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
@@ -226,26 +213,26 @@ class LinuxService(PlatformService):
         else:
             dest_path = os.path.join(os.getcwd(), backup_name)
 
-        typer.echo("📦 Compressing config ...")
-        typer.echo(f"Compressing config from {config_dir}...")
+        console.print("📦 Compressing config ...")
+        console.print(f"Compressing config from {config_dir}...")
         zip_dir(config_dir, dest_path)
 
-        typer.echo(color("✅ Backup created:", GREEN))
-        typer.echo(color(dest_path, GREEN))
-        typer.echo()
+        console.print("[green]✅ Backup created:[/green]")
+        console.print(f"[green]{dest_path}[/green]")
+        console.print()
         return dest_path
 
     def restore(self, app_name: str, zip_file: str) -> None:
-        typer.echo(color("=== RESTORE CONFIGURATION ===", BLUE))
+        console.print("[blue]=== RESTORE CONFIGURATION ===[/blue]")
 
-        typer.echo()
+        console.print()
         if not zip_file:
-            zip_file = input("Enter the path to the backup .zip file: ").strip()
+            zip_file = Prompt.ask("[bold]Enter the path to the backup .zip file[/bold]").strip()
         if not zip_file:
-            typer.echo(color("Please provide the path to the backup .zip file.", RED))
+            console.print("[red]Please provide the path to the backup .zip file.[/red]")
             sys_exit(1)
         if not os.path.isfile(zip_file):
-            typer.echo(color(f"File not found: {zip_file}", RED))
+            console.print(f"[red]File not found: {zip_file}[/red]")
             sys_exit(1)
 
         if not app_name:
@@ -260,46 +247,46 @@ class LinuxService(PlatformService):
             restore_dir = os.path.join(base, "config")
 
         if not restore_dir:
-            typer.echo(color("Target configuration directory does not exist for this app.", RED))
+            console.print("[red]Target configuration directory does not exist for this app.[/red]")
             sys_exit(1)
 
         if base and not os.path.isdir(base):
             os.makedirs(base, exist_ok=True)
 
         if os.path.isdir(restore_dir):
-            typer.echo(f"Removing existing config: {restore_dir}")
+            console.print(f"Removing existing config: {restore_dir}")
             rmtree(restore_dir)
         os.makedirs(restore_dir, exist_ok=True)
 
-        typer.echo(f"📦 Restoring backup to: {restore_dir}")
+        console.print(f"📦 Restoring backup to: {restore_dir}")
         with ZipFile(zip_file, "r") as handle:
             handle.extractall(restore_dir)
 
-        typer.echo(color("✅ Restore complete!", GREEN))
-        typer.echo()
+        console.print("[green]✅ Restore complete![/green]")
+        console.print()
 
     def uninstall(self, app_name: str, skip_check: bool = False) -> None:
-        typer.echo(color("=== UNINSTALL ===", BLUE))
+        console.print("[blue]=== UNINSTALL ===[/blue]")
 
-        typer.echo()
+        console.print()
         if not app_name:
             app_name = prompt_app_name("👉 Enter which app (nekoray, throne): ")
-        typer.echo(f"\nUninstalling {app_name}...")
+        console.print(f"\nUninstalling {app_name}...")
 
         if not skip_check and not check_installations(app_name):
-            typer.echo(color(f"\n⚠ No {app_name} installations found on this system.", YELLOW))
-            typer.echo()
+            console.print(f"[yellow]\n⚠ No {app_name} installations found on this system.[/yellow]")
+            console.print()
             return
 
         if which("dpkg"):
             res = run_capture(["dpkg", "-l"])
             if res.returncode == 0 and app_name in res.stdout:
-                typer.echo(f"Removing {app_name} .deb package...")
+                console.print(f"Removing {app_name} .deb package...")
                 run_cmd(["sudo", "dpkg", "-r", app_name], check=False)
         if which("rpm"):
             res = run_capture(["rpm", "-q", app_name])
             if res.returncode == 0:
-                typer.echo(f"Removing {app_name} .rpm package...")
+                console.print(f"Removing {app_name} .rpm package...")
                 run_cmd(["sudo", "rpm", "-e", app_name], check=False)
 
         app_variants = ["throne", "Throne"] if app_name == "throne" else ["nekoray", "NekoRay"]
@@ -319,8 +306,8 @@ class LinuxService(PlatformService):
                 if os.path.isdir(location) or os.path.isfile(location):
                     run_cmd(["sudo", "rm", "-rf", location], check=False)
 
-        typer.echo(color(f"\n✅ {app_name} installations have been removed.", GREEN))
-        typer.echo()
+        console.print(f"[green]\n✅ {app_name} installations have been removed.[/green]")
+        console.print()
 
     def reinstall(
         self,
@@ -330,11 +317,8 @@ class LinuxService(PlatformService):
         force: bool = False,
     ) -> None:
         if app_name == "nekoray":
-            typer.echo(
-                color(
-                    "⚠ Installer only supports Throne packages; reinstall will install Throne.",
-                    YELLOW,
-                ),
+            console.print(
+                "[yellow]⚠ Installer only supports Throne packages; reinstall will install Throne.[/yellow]",
             )
         backup_path = None
         if backup:
@@ -347,9 +331,13 @@ class LinuxService(PlatformService):
     def version(self, app_name: str) -> None:
         version = linux_package_version(app_name) or "unknown"
         paths = linux_install_paths(app_name)
-        typer.echo(f"App: {app_name}")
-        typer.echo(f"Version: {version}")
-        typer.echo(f"Install path: {paths[0] if paths else 'not found'}")
+        table = Table(show_header=False, box=box.SIMPLE)
+        table.add_column("Property", style="cyan")
+        table.add_column("Value")
+        table.add_row("App", app_name)
+        table.add_row("Version", version)
+        table.add_row("Install path", paths[0] if paths else "not found")
+        console.print(table)
 
     def enable_hotspot(
         self,
@@ -358,14 +346,13 @@ class LinuxService(PlatformService):
         ssid: str | None = None,
         password: str | None = None,
     ) -> None:
-        typer.echo(color("=== ENABLE HOTSPOT ===", BLUE))
-        typer.echo()
-        typer.echo(color("🚀 Starting Throne Hotspot...", GREEN))
+        console.print("[blue]=== ENABLE HOTSPOT ===[/blue]")
+        console.print()
+        console.print("[green]🚀 Starting Throne Hotspot...[/green]")
         if dry_run is None:
-            dry_choice = input("Run in dry-run mode? (y/N): ").strip().lower()
-            dry_run = dry_choice == "y"
+            dry_run = Confirm.ask("[yellow]Run in dry-run mode[/yellow]")
         if dry_run:
-            typer.echo(color("🧪 Running in dry-run mode — no changes will be made.", YELLOW))
+            console.print("[yellow]🧪 Running in dry-run mode — no changes will be made.[/yellow]")
 
         if not ensure_linux_command(
             "nmcli",
@@ -386,50 +373,45 @@ class LinuxService(PlatformService):
         hotspot_iface = find_linux_wifi_iface(iface)
         if not hotspot_iface:
             if iface:
-                typer.echo(color(f"❌ Wi-Fi interface not found: {iface}", RED))
+                console.print(f"[red]❌ Wi-Fi interface not found: {iface}[/red]")
             else:
-                typer.echo(color("❌ No Wi-Fi interface found. Exiting.", RED))
+                console.print("[red]❌ No Wi-Fi interface found. Exiting.[/red]")
             sys_exit(1)
-        typer.echo(color(f"✅ Wi-Fi interface: {BOLD}{hotspot_iface}{NC}", GREEN))
+        console.print(f"[green]✅ Wi-Fi interface: [bold]{hotspot_iface}[/bold][/green]")
 
         res = run_capture(["sudo", "nft", "list", "table", "inet", LINUX_REQUIRED_INET_TABLE])
         if res.returncode != 0:
-            typer.echo(color(f"❌ Missing 'inet {LINUX_REQUIRED_INET_TABLE}' nftables table.", RED))
-            typer.echo("   Please enable 'Tun Mode' in Throne/NekoRay GUI settings.")
+            console.print(f"[red]❌ Missing 'inet {LINUX_REQUIRED_INET_TABLE}' nftables table.[/red]")
+            console.print("   Please enable 'Tun Mode' in Throne/NekoRay GUI settings.")
             sys_exit(1)
 
-        typer.echo(color("✅ Enabling Wi-Fi...", GREEN))
+        console.print("[green]✅ Enabling Wi-Fi...[/green]")
         run_cmd(["nmcli", "radio", "wifi", "on"], dry_run=dry_run, check=False)
 
         res = run_capture(["iw", "dev", hotspot_iface, "info"])
         if res.returncode == 0 and "type AP" in res.stdout:
-            typer.echo(
-                color(
-                    f"⚠ A Wi-Fi hotspot is already active on {hotspot_iface}. Skipping creation.",
-                    YELLOW,
-                ),
+            console.print(
+                f"[yellow]⚠ A Wi-Fi hotspot is already active on {hotspot_iface}. Skipping creation.[/yellow]"
             )
             return
 
-        typer.echo(color("✅ Starting hotspot...", GREEN))
+        console.print("[green]✅ Starting hotspot...[/green]")
         if not password:
             while True:
-                password = getpass(f"\n🔒 Enter hotspot password (min {MIN_PASSWORD_LENGTH} chars): ")
+                _pw_prompt = f"\n[bold]🔒 Enter hotspot password (min {MIN_PASSWORD_LENGTH} chars)[/bold]"
+                password = Prompt.ask(_pw_prompt, password=True)
                 if len(password) >= MIN_PASSWORD_LENGTH:
                     break
-                typer.echo(color(f"❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.", RED))
+                console.print(f"[red]❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.[/red]")
         if len(password) < MIN_PASSWORD_LENGTH:
-            typer.echo(color(f"❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.", RED))
+            console.print(f"[red]❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.[/red]")
             sys_exit(1)
 
         ssid = ssid or LINUX_SSID
 
         if dry_run:
-            typer.echo(
-                color(
-                    f'→ nmcli dev wifi hotspot ifname "{hotspot_iface}" ssid "{ssid}" password "********"',
-                    BLUE,
-                ),
+            console.print(
+                f'[blue]→ nmcli dev wifi hotspot ifname "{hotspot_iface}" ssid "{ssid}" password "********"[/blue]'
             )
         else:
             res = run_capture(
@@ -447,10 +429,10 @@ class LinuxService(PlatformService):
                 ],
             )
             if res.returncode != 0:
-                typer.echo(color("❌ Failed to start hotspot — maybe AP mode is unsupported.", RED))
+                console.print("[red]❌ Failed to start hotspot — maybe AP mode is unsupported.[/red]")
                 sys_exit(1)
 
-        typer.echo(color("✅ Setting up nftables rules...", GREEN))
+        console.print("[green]✅ Setting up nftables rules...[/green]")
 
         table = quote(LINUX_NFT_TABLE)
         tun_iface = quote(LINUX_TUN_IFACE)
@@ -494,26 +476,25 @@ class LinuxService(PlatformService):
             check=False,
         )
 
-        typer.echo()
-        typer.echo(color("✔ Hotspot is ready and running!", GREEN + BOLD))
-        typer.echo(f"SSID: {ssid}")
-        typer.echo(f"Password: {password}")
-        typer.echo()
+        console.print()
+        console.print("[bold green]✔ Hotspot is ready and running![/bold green]")
+        console.print(f"SSID: {ssid}")
+        console.print(f"Password: {password}")
+        console.print()
 
     def disable_hotspot(self, dry_run: bool | None = None) -> None:
-        typer.echo(color("=== DISABLE HOTSPOT ===", BLUE))
-        typer.echo()
+        console.print("[blue]=== DISABLE HOTSPOT ===[/blue]")
+        console.print()
         if dry_run is None:
-            dry_choice = input("Run in dry-run mode? (y/N): ").strip().lower()
-            dry_run = dry_choice == "y"
+            dry_run = Confirm.ask("[yellow]Run in dry-run mode[/yellow]")
         if dry_run:
-            typer.echo(color("🧪 Running in dry-run mode — no changes will be made.", YELLOW))
+            console.print("[yellow]🧪 Running in dry-run mode — no changes will be made.[/yellow]")
 
-        typer.echo(color("✅ Stopping hotspot...", GREEN))
+        console.print("[green]✅ Stopping hotspot...[/green]")
         run_cmd(["nmcli", "connection", "down", "Hotspot"], dry_run=dry_run, check=False)
         run_cmd(["nmcli", "connection", "delete", "Hotspot"], dry_run=dry_run, check=False)
 
-        typer.echo(color("✅ Removing nftables table...", GREEN))
+        console.print("[green]✅ Removing nftables table...[/green]")
         run_cmd(
             f"sudo nft delete table ip {quote(LINUX_NFT_TABLE)} 2>/dev/null || true",
             dry_run=dry_run,
@@ -521,9 +502,9 @@ class LinuxService(PlatformService):
             check=False,
         )
 
-        typer.echo()
-        typer.echo(color("✔ Hotspot stopped and nftables rules removed.", GREEN + BOLD))
-        typer.echo()
+        console.print()
+        console.print("[bold green]✔ Hotspot stopped and nftables rules removed.[/bold green]")
+        console.print()
 
 
 class MacOSService(PlatformService):
@@ -532,17 +513,17 @@ class MacOSService(PlatformService):
         return "macOS"
 
     def install(self) -> None:
-        typer.echo(color("=== INSTALLATION ===", BLUE))
-        typer.echo()
+        console.print("[blue]=== INSTALLATION ===[/blue]")
+        console.print()
 
         app_path = f"/Applications/{THRONE_APP_NAME}.app"
         if os.path.isdir(app_path):
-            typer.echo(color(f"{THRONE_APP_NAME} is already installed at {app_path}.", YELLOW))
-            typer.echo(color("Please back it up and delete it if you want to reinstall.", YELLOW))
-            typer.echo()
+            console.print(f"[yellow]{THRONE_APP_NAME} is already installed at {app_path}.[/yellow]")
+            console.print("[yellow]Please back it up and delete it if you want to reinstall.[/yellow]")
+            console.print()
             return
 
-        typer.echo(f"Fetching latest {THRONE_APP_NAME} release...")
+        console.print(f"Fetching latest {THRONE_APP_NAME} release...")
         release = github_latest_release()
         assets = release.get("assets", [])
 
@@ -556,54 +537,46 @@ class MacOSService(PlatformService):
                 break
 
         if not target_asset:
-            typer.echo(color(f"Failed to find download URL for macOS {arch}.", RED))
+            console.print(f"[red]Failed to find download URL for macOS {arch}.[/red]")
             sys_exit(1)
 
         download_url = target_asset.get("browser_download_url")
-        typer.echo(f"Downloading from: {download_url}")
+        console.print(f"Downloading from: {download_url}")
 
         with TemporaryDirectory() as tmpdir:
             zip_path = os.path.join(tmpdir, f"{THRONE_APP_NAME}.zip")
             download_file(download_url, zip_path)
-            typer.echo("Installing...")
+            console.print("Installing...")
             with ZipFile(zip_path, "r") as handle:
                 handle.extractall(tmpdir)
 
             app_src = os.path.join(tmpdir, THRONE_APP_NAME, f"{THRONE_APP_NAME}.app")
             if not os.path.isdir(app_src):
-                typer.echo(color("Extracted app not found in archive.", RED))
+                console.print("[red]Extracted app not found in archive.[/red]")
                 sys_exit(1)
 
             try:
                 move(app_src, "/Applications/")
             except PermissionError:
-                typer.echo(
-                    color(
-                        "Permission denied while moving app to /Applications. Run this script with sudo.",
-                        RED,
-                    ),
+                console.print(
+                    "[red]Permission denied while moving app to /Applications. Run this script with sudo.[/red]",
                 )
                 sys_exit(1)
 
-        typer.echo()
-        typer.echo(color(f"✅ Done! {THRONE_APP_NAME} has been installed to /Applications.", GREEN))
-        typer.echo(
-            color(
-                f"You can now launch '{THRONE_APP_NAME}' from Spotlight or Launchpad.",
-                GREEN,
-            ),
-        )
-        typer.echo()
+        console.print()
+        console.print(f"[green]✅ Done! {THRONE_APP_NAME} has been installed to /Applications.[/green]")
+        console.print(f"[green]You can now launch '{THRONE_APP_NAME}' from Spotlight or Launchpad.[/green]")
+        console.print()
 
     def backup(self, app_name: str, output_path: str | None) -> str:
-        typer.echo(color("=== BACKUP CONFIGURATION ===", BLUE))
-        typer.echo()
+        console.print("[blue]=== BACKUP CONFIGURATION ===[/blue]")
+        console.print()
         if not app_name:
             app_name = prompt_app_name("👉 Enter which app (Throne or oldest nekoray): ")
 
         config_dir = os.path.join(os.path.expanduser("~"), "Library/Preferences", app_name, "config")
         if not os.path.isdir(config_dir):
-            typer.echo(color(f"Config directory does not exist: {config_dir}", RED))
+            console.print(f"[red]Config directory does not exist: {config_dir}[/red]")
             sys_exit(1)
 
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
@@ -613,25 +586,25 @@ class MacOSService(PlatformService):
         else:
             dest_path = os.path.join(os.getcwd(), backup_name)
 
-        typer.echo("📦 Compressing config ...")
-        typer.echo(f"Compressing config from {config_dir}...")
+        console.print("📦 Compressing config ...")
+        console.print(f"Compressing config from {config_dir}...")
         zip_dir(config_dir, dest_path)
 
-        typer.echo(color("✅ Backup created:", GREEN))
-        typer.echo(color(dest_path, GREEN))
-        typer.echo()
+        console.print("[green]✅ Backup created:[/green]")
+        console.print(f"[green]{dest_path}[/green]")
+        console.print()
         return dest_path
 
     def restore(self, app_name: str, zip_file: str) -> None:
-        typer.echo(color("=== RESTORE CONFIGURATION ===", BLUE))
-        typer.echo()
+        console.print("[blue]=== RESTORE CONFIGURATION ===[/blue]")
+        console.print()
         if not zip_file:
-            zip_file = input("Enter the path to the backup .zip file: ").strip()
+            zip_file = Prompt.ask("[bold]Enter the path to the backup .zip file[/bold]").strip()
         if not zip_file:
-            typer.echo(color("Please provide the path to the backup .zip file.", RED))
+            console.print("[red]Please provide the path to the backup .zip file.[/red]")
             sys_exit(1)
         if not os.path.isfile(zip_file):
-            typer.echo(color(f"File not found: {zip_file}", RED))
+            console.print(f"[red]File not found: {zip_file}[/red]")
             sys_exit(1)
 
         if not app_name:
@@ -643,40 +616,40 @@ class MacOSService(PlatformService):
             os.makedirs(base, exist_ok=True)
 
         if os.path.isdir(restore_dir):
-            typer.echo(f"Removing existing config: {restore_dir}")
+            console.print(f"Removing existing config: {restore_dir}")
             rmtree(restore_dir)
         os.makedirs(restore_dir, exist_ok=True)
 
-        typer.echo(f"📦 Restoring backup to: {restore_dir}")
+        console.print(f"📦 Restoring backup to: {restore_dir}")
         with ZipFile(zip_file, "r") as handle:
             handle.extractall(restore_dir)
 
-        typer.echo(color("✅ Restore complete!", GREEN))
-        typer.echo()
+        console.print("[green]✅ Restore complete![/green]")
+        console.print()
 
     def uninstall(self, app_name: str, skip_check: bool = False) -> None:
-        typer.echo(color("=== UNINSTALL ===", BLUE))
-        typer.echo()
+        console.print("[blue]=== UNINSTALL ===[/blue]")
+        console.print()
         if not app_name:
             app_name = prompt_app_name("👉 Enter which app (Throne or oldest nekoray): ")
         prefs_dir = os.path.join(os.path.expanduser("~"), "Library/Preferences", app_name)
         app_bundle = f"/Applications/{app_name}.app"
 
-        typer.echo(f"\nUninstalling {app_name}...")
+        console.print(f"\nUninstalling {app_name}...")
         if os.path.isdir(prefs_dir):
-            typer.echo(f"Removing preferences: {prefs_dir}")
+            console.print(f"Removing preferences: {prefs_dir}")
             run_cmd(["sudo", "rm", "-rvf", prefs_dir], check=False)
         else:
-            typer.echo(f"No preferences folder found at: {prefs_dir}")
+            console.print(f"No preferences folder found at: {prefs_dir}")
 
         if os.path.isdir(app_bundle):
-            typer.echo(f"Removing app bundle: {app_bundle}")
+            console.print(f"Removing app bundle: {app_bundle}")
             run_cmd(["sudo", "rm", "-rvf", app_bundle], check=False)
         else:
-            typer.echo(f"No app found at: {app_bundle}")
+            console.print(f"No app found at: {app_bundle}")
 
-        typer.echo(color(f"\n✅ {app_name} has been successfully uninstalled.", GREEN))
-        typer.echo()
+        console.print(f"[green]\n✅ {app_name} has been successfully uninstalled.[/green]")
+        console.print()
 
     def reinstall(
         self,
@@ -686,11 +659,8 @@ class MacOSService(PlatformService):
         force: bool = False,
     ) -> None:
         if app_name == "nekoray":
-            typer.echo(
-                color(
-                    "⚠ Installer only supports Throne packages; reinstall will install Throne.",
-                    YELLOW,
-                ),
+            console.print(
+                "[yellow]⚠ Installer only supports Throne packages; reinstall will install Throne.[/yellow]",
             )
         backup_path = None
         if backup:
@@ -701,14 +671,15 @@ class MacOSService(PlatformService):
             self.restore(app_name=app_name, zip_file=backup_path)
 
     def version(self, app_name: str) -> None:
-        typer.echo(color("=== Version ===", BLUE))
-        typer.echo()
         app_bundle = macos_app_bundle(app_name)
         version = macos_app_version(app_bundle) if app_bundle else ""
-        typer.echo(f"App: {app_name}")
-        typer.echo(f"Version: {version or 'unknown'}")
-        typer.echo(f"Install path: {app_bundle or 'not found'}")
-        typer.echo()
+        table = Table(show_header=False, box=box.SIMPLE)
+        table.add_column("Property", style="cyan")
+        table.add_column("Value")
+        table.add_row("App", app_name)
+        table.add_row("Version", version or "unknown")
+        table.add_row("Install path", app_bundle or "not found")
+        console.print(table)
 
     def enable_hotspot(
         self,
@@ -717,47 +688,47 @@ class MacOSService(PlatformService):
         ssid: str | None = None,
         password: str | None = None,
     ) -> None:
-        typer.echo(color("=== ENABLE HOTSPOT ===", BLUE))
-        typer.echo()
-        typer.echo(color("🚀 Starting Throne Hotspot (best-effort on macOS)...", GREEN))
+        console.print("[blue]=== ENABLE HOTSPOT ===[/blue]")
+        console.print()
+        console.print("[green]🚀 Starting Throne Hotspot (best-effort on macOS)...[/green]")
 
         if dry_run is None:
-            dry_choice = input("Run in dry-run mode? (y/N): ").strip().lower()
-            dry_run = dry_choice == "y"
+            dry_run = Confirm.ask("[yellow]Run in dry-run mode[/yellow]")
         if dry_run:
-            typer.echo(color("🧪 Running in dry-run mode — no changes will be made.", YELLOW))
+            console.print("[yellow]🧪 Running in dry-run mode — no changes will be made.[/yellow]")
 
         if not which("networksetup"):
-            typer.echo(color("❌ 'networksetup' not found. macOS hotspot is unavailable.", RED))
+            console.print("[red]❌ 'networksetup' not found. macOS hotspot is unavailable.[/red]")
             sys_exit(1)
 
         airport_tool = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
         if not os.path.exists(airport_tool):
-            typer.echo(color("❌ 'airport' tool not found. macOS hotspot is unavailable.", RED))
+            console.print("[red]❌ 'airport' tool not found. macOS hotspot is unavailable.[/red]")
             sys_exit(1)
 
         if not iface:
             iface = detect_macos_wifi_iface()
         if not iface:
-            typer.echo(color("❌ Wi-Fi interface not found on macOS.", RED))
+            console.print("[red]❌ Wi-Fi interface not found on macOS.[/red]")
             sys_exit(1)
 
         ssid = ssid or LINUX_SSID
 
         if not password:
             while True:
-                password = getpass(f"\n🔒 Enter hotspot password (min {MIN_PASSWORD_LENGTH} chars): ")
+                _pw_prompt = f"\n[bold]🔒 Enter hotspot password (min {MIN_PASSWORD_LENGTH} chars)[/bold]"
+                password = Prompt.ask(_pw_prompt, password=True)
                 if len(password) >= MIN_PASSWORD_LENGTH:
                     break
-                typer.echo(color(f"❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.", RED))
+                console.print(f"[red]❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.[/red]")
         if len(password) < MIN_PASSWORD_LENGTH:
-            typer.echo(color(f"❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.", RED))
+            console.print(f"[red]❌ Password must be at least {MIN_PASSWORD_LENGTH} characters.[/red]")
             sys_exit(1)
 
-        typer.echo(color("✅ Enabling Wi-Fi...", GREEN))
+        console.print("[green]✅ Enabling Wi-Fi...[/green]")
         run_cmd(["networksetup", "-setairportpower", iface, "on"], dry_run=dry_run, check=False)
 
-        typer.echo(color("✅ Attempting to create hotspot...", GREEN))
+        console.print("[green]✅ Attempting to create hotspot...[/green]")
         create_cmd = [airport_tool, "--create", ssid, password]
         if dry_run:
             run_cmd(create_cmd, dry_run=True, check=False)
@@ -765,50 +736,49 @@ class MacOSService(PlatformService):
         else:
             res = run_capture(create_cmd)
         if res.returncode != 0:
-            typer.echo(color("⚠ Failed to create hotspot via 'airport'.", YELLOW))
-            typer.echo("   macOS hotspot setup can require manual configuration.")
+            console.print("[yellow]⚠ Failed to create hotspot via 'airport'.[/yellow]")
+            console.print("   macOS hotspot setup can require manual configuration.")
 
         sharing_plist = "/System/Library/LaunchDaemons/com.apple.InternetSharing.plist"
         if os.path.exists(sharing_plist):
-            typer.echo(color("✅ Attempting to enable Internet Sharing...", GREEN))
+            console.print("[green]✅ Attempting to enable Internet Sharing...[/green]")
             run_cmd(
                 ["sudo", "launchctl", "load", "-w", sharing_plist],
                 dry_run=dry_run,
                 check=False,
             )
         else:
-            typer.echo(color("⚠ Internet Sharing plist not found.", YELLOW))
+            console.print("[yellow]⚠ Internet Sharing plist not found.[/yellow]")
 
-        typer.echo()
-        typer.echo(color("✔ Hotspot command completed (best-effort).", GREEN + BOLD))
-        typer.echo(f"SSID: {ssid}")
-        typer.echo(f"Password: {password}")
-        typer.echo("Verify in System Settings → General → Sharing → Internet Sharing.")
-        typer.echo()
+        console.print()
+        console.print("[bold green]✔ Hotspot command completed (best-effort).[/bold green]")
+        console.print(f"SSID: {ssid}")
+        console.print(f"Password: {password}")
+        console.print("Verify in System Settings → General → Sharing → Internet Sharing.")
+        console.print()
 
     def disable_hotspot(self, dry_run: bool | None = None) -> None:
-        typer.echo(color("=== DISABLE HOTSPOT ===", BLUE))
-        typer.echo()
+        console.print("[blue]=== DISABLE HOTSPOT ===[/blue]")
+        console.print()
         if dry_run is None:
-            dry_choice = input("Run in dry-run mode? (y/N): ").strip().lower()
-            dry_run = dry_choice == "y"
+            dry_run = Confirm.ask("[yellow]Run in dry-run mode[/yellow]")
         if dry_run:
-            typer.echo(color("🧪 Running in dry-run mode — no changes will be made.", YELLOW))
+            console.print("[yellow]🧪 Running in dry-run mode — no changes will be made.[/yellow]")
 
         sharing_plist = "/System/Library/LaunchDaemons/com.apple.InternetSharing.plist"
         if os.path.exists(sharing_plist):
-            typer.echo(color("✅ Attempting to disable Internet Sharing...", GREEN))
+            console.print("[green]✅ Attempting to disable Internet Sharing...[/green]")
             run_cmd(
                 ["sudo", "launchctl", "unload", "-w", sharing_plist],
                 dry_run=dry_run,
                 check=False,
             )
         else:
-            typer.echo(color("⚠ Internet Sharing plist not found.", YELLOW))
+            console.print("[yellow]⚠ Internet Sharing plist not found.[/yellow]")
 
-        typer.echo()
-        typer.echo(color("✔ Hotspot stop command completed (best-effort).", GREEN + BOLD))
-        typer.echo()
+        console.print()
+        console.print("[bold green]✔ Hotspot stop command completed (best-effort).[/bold green]")
+        console.print()
 
 
 class WindowsService(PlatformService):
@@ -817,16 +787,16 @@ class WindowsService(PlatformService):
         return "Windows"
 
     def install(self) -> None:
-        typer.echo(color("=== INSTALLATION ===", BLUE))
-        typer.echo()
-        typer.echo("Fetching latest Throne release...")
+        console.print("[blue]=== INSTALLATION ===[/blue]")
+        console.print()
+        console.print("Fetching latest Throne release...")
 
         release = github_latest_release()
         assets = release.get("assets", [])
         target_asset = find_windows_installer_asset(assets)
 
         if not target_asset:
-            typer.echo(color("No Windows installer found in the latest release.", RED))
+            console.print("[red]No Windows installer found in the latest release.[/red]")
             sys_exit(1)
 
         installer_url = target_asset.get("browser_download_url", "")
@@ -834,33 +804,33 @@ class WindowsService(PlatformService):
         temp_dir = gettempdir()
         installer_path = os.path.join(temp_dir, "throne_installer.exe")
 
-        typer.echo(f"Found installer: {installer_name}")
-        typer.echo("Downloading Throne installer...")
+        console.print(f"Found installer: {installer_name}")
+        console.print("Downloading Throne installer...")
         download_file(installer_url, installer_path)
 
         if os.path.isfile(installer_path):
-            typer.echo(f"Download completed: {installer_path}")
-            typer.echo("Launching installer...")
+            console.print(f"Download completed: {installer_path}")
+            console.print("Launching installer...")
             try:
                 Popen([installer_path], shell=False)
             except OSError as exc:
-                typer.echo(color(f"Failed to launch installer: {exc}", RED))
+                console.print(f"[red]Failed to launch installer: {exc}[/red]")
                 sys_exit(1)
-            typer.echo("Installer launched. Exiting.")
+            console.print("Installer launched. Exiting.")
         else:
-            typer.echo(color("Download failed.", RED))
+            console.print("[red]Download failed.[/red]")
             sys_exit(1)
 
     def backup(self, app_name: str, output_path: str | None) -> str:
-        typer.echo(color("=== BACKUP CONFIGURATION ===", BLUE))
-        typer.echo()
+        console.print("[blue]=== BACKUP CONFIGURATION ===[/blue]")
+        console.print()
         if not app_name:
             app_name = prompt_app_name("👉 Enter which app (nekoray, throne): ")
 
         base_dir = windows_config_base(app_name)
         config_dir = os.path.join(base_dir, "config") if base_dir else ""
         if not config_dir or not os.path.isdir(config_dir):
-            typer.echo(color(f"Config directory does not exist: {config_dir}", RED))
+            console.print(f"[red]Config directory does not exist: {config_dir}[/red]")
             sys_exit(1)
 
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
@@ -870,25 +840,25 @@ class WindowsService(PlatformService):
         else:
             dest_path = os.path.join(os.getcwd(), backup_name)
 
-        typer.echo("📦 Compressing config ...")
-        typer.echo(f"Compressing config from {config_dir}...")
+        console.print("📦 Compressing config ...")
+        console.print(f"Compressing config from {config_dir}...")
         zip_dir(config_dir, dest_path)
 
-        typer.echo(color("✅ Backup created:", GREEN))
-        typer.echo(color(dest_path, GREEN))
-        typer.echo()
+        console.print("[green]✅ Backup created:[/green]")
+        console.print(f"[green]{dest_path}[/green]")
+        console.print()
         return dest_path
 
     def restore(self, app_name: str, zip_file: str) -> None:
-        typer.echo(color("=== RESTORE CONFIGURATION ===", BLUE))
-        typer.echo()
+        console.print("[blue]=== RESTORE CONFIGURATION ===[/blue]")
+        console.print()
         if not zip_file:
-            zip_file = input("Enter the path to the backup .zip file: ").strip()
+            zip_file = Prompt.ask("[bold]Enter the path to the backup .zip file[/bold]").strip()
         if not zip_file:
-            typer.echo(color("Please provide the path to the backup .zip file.", RED))
+            console.print("[red]Please provide the path to the backup .zip file.[/red]")
             sys_exit(1)
         if not os.path.isfile(zip_file):
-            typer.echo(color(f"File not found: {zip_file}", RED))
+            console.print(f"[red]File not found: {zip_file}[/red]")
             sys_exit(1)
 
         if not app_name:
@@ -896,33 +866,33 @@ class WindowsService(PlatformService):
 
         base_dir = windows_config_base(app_name)
         if not base_dir:
-            typer.echo(color("APPDATA is not available on this system.", RED))
+            console.print("[red]APPDATA is not available on this system.[/red]")
             sys_exit(1)
 
         restore_dir = os.path.join(base_dir, "config")
         if os.path.isdir(restore_dir):
-            typer.echo(f"Removing existing config: {restore_dir}")
+            console.print(f"Removing existing config: {restore_dir}")
             rmtree(restore_dir)
         os.makedirs(restore_dir, exist_ok=True)
 
-        typer.echo(f"📦 Restoring backup to: {restore_dir}")
+        console.print(f"📦 Restoring backup to: {restore_dir}")
         with ZipFile(zip_file, "r") as handle:
             handle.extractall(restore_dir)
 
-        typer.echo(color("✅ Restore complete!", GREEN))
-        typer.echo()
+        console.print("[green]✅ Restore complete![/green]")
+        console.print()
 
     def uninstall(self, app_name: str, skip_check: bool = False) -> None:
-        typer.echo(color("=== UNINSTALL ===", BLUE))
-        typer.echo()
+        console.print("[blue]=== UNINSTALL ===[/blue]")
+        console.print()
         if not app_name:
             app_name = prompt_app_name("👉 Enter which app (nekoray, throne): ")
 
-        typer.echo(f"\nUninstalling {app_name}...")
+        console.print(f"\nUninstalling {app_name}...")
         base_dir = windows_config_base(app_name)
         config_dir = os.path.join(base_dir, "config") if base_dir else ""
         if config_dir and os.path.isdir(config_dir):
-            typer.echo(f"Removing config: {config_dir}")
+            console.print(f"Removing config: {config_dir}")
             rmtree(config_dir)
 
         local_appdata = os.environ.get("LOCALAPPDATA", "")
@@ -945,18 +915,18 @@ class WindowsService(PlatformService):
 
         uninstallers = [path for path in uninstallers if path and os.path.isfile(path)]
         if uninstallers:
-            typer.echo(f"Launching uninstaller: {uninstallers[0]}")
+            console.print(f"Launching uninstaller: {uninstallers[0]}")
             try:
                 Popen([uninstallers[0]], shell=False)
             except OSError as exc:
-                typer.echo(color(f"Failed to launch uninstaller: {exc}", RED))
-                typer.echo("Please uninstall using Windows Apps & Features.")
+                console.print(f"[red]Failed to launch uninstaller: {exc}[/red]")
+                console.print("Please uninstall using Windows Apps & Features.")
         else:
-            typer.echo(color("Uninstaller not found.", YELLOW))
-            typer.echo("Please uninstall using Windows Apps & Features.")
+            console.print("[yellow]Uninstaller not found.[/yellow]")
+            console.print("Please uninstall using Windows Apps & Features.")
 
-        typer.echo(color(f"\n✅ {app_name} uninstall steps completed.", GREEN))
-        typer.echo()
+        console.print(f"[green]\n✅ {app_name} uninstall steps completed.[/green]")
+        console.print()
 
     def reinstall(
         self,
@@ -966,11 +936,8 @@ class WindowsService(PlatformService):
         force: bool = False,
     ) -> None:
         if app_name == "nekoray":
-            typer.echo(
-                color(
-                    "⚠ Installer only supports Throne packages; reinstall will install Throne.",
-                    YELLOW,
-                ),
+            console.print(
+                "[yellow]⚠ Installer only supports Throne packages; reinstall will install Throne.[/yellow]",
             )
         backup_path = None
         if backup:
@@ -981,31 +948,27 @@ class WindowsService(PlatformService):
             self.restore(app_name=app_name, zip_file=backup_path)
 
     def version(self, app_name: str) -> None:
-        typer.echo(color("=== Version ===", BLUE))
-        typer.echo()
         candidates = windows_exe_candidates(app_name)
         exe_path = next((path for path in candidates if os.path.isfile(path)), "")
         version = windows_exe_version(exe_path) if exe_path else ""
-        typer.echo(f"App: {app_name}")
-        typer.echo(f"Version: {version or 'unknown'}")
-        typer.echo(f"Install path: {exe_path or 'not found'}")
-        typer.echo()
-
-
-def color(text: str, shade: str) -> str:
-    return f"{shade}{text}{NC}"
+        table = Table(show_header=False, box=box.SIMPLE)
+        table.add_column("Property", style="cyan")
+        table.add_column("Value")
+        table.add_row("App", app_name)
+        table.add_row("Version", version or "unknown")
+        table.add_row("Install path", exe_path or "not found")
+        console.print(table)
 
 
 def show_banner(platform_name) -> None:
-    typer.clear()
-    typer.echo(color(BANNER, YELLOW))
-    typer.echo(color(f"{THRONE_APP_NAME} Tools for {platform_name}", BLUE))
+    console.print(BANNER, style="cyan")
+    console.print(f"[bold]{THRONE_APP_NAME} Tools for {platform_name}[/bold]")
 
 
 def prompt_app_name(prompt_text: str) -> str:
-    app_name = input(prompt_text).strip().lower()
+    app_name = Prompt.ask(prompt_text).strip().lower()
     if app_name not in {"nekoray", "throne"}:
-        typer.echo(color("Invalid app name. Only 'nekoray' or 'throne' allowed.", RED))
+        console.print("[red]Invalid app name. Only 'nekoray' or 'throne' allowed.[/red]")
         sys_exit(1)
     return app_name
 
@@ -1013,9 +976,10 @@ def prompt_app_name(prompt_text: str) -> str:
 def run_cmd(cmd: str | list[str], dry_run: bool = False, shell: bool = False, check: bool = True) -> CompletedProcess:
     if dry_run:
         if isinstance(cmd, list):
-            typer.echo(color("→ " + " ".join(cmd), BLUE))
+            cmd_str = " ".join(cmd)
+            console.print(f"[blue]→ {cmd_str}[/blue]")
         else:
-            typer.echo(color("→ " + cmd, BLUE))
+            console.print(f"[blue]→ {cmd}[/blue]")
         return CompletedProcess(cmd, 0)
     return run(cmd, shell=shell, check=check)
 
@@ -1044,12 +1008,12 @@ def check_installations(app_name: str) -> bool:
     if which("dpkg"):
         res = run_capture(["dpkg", "-l"])
         if res.returncode == 0 and app_name in res.stdout:
-            typer.echo(color(f"{app_name} package is installed.", YELLOW))
+            console.print(f"[yellow]{app_name} package is installed.[/yellow]")
             found = True
     if which("rpm"):
         res = run_capture(["rpm", "-q", app_name])
         if res.returncode == 0:
-            typer.echo(color(f"{app_name} package is installed.", YELLOW))
+            console.print(f"[yellow]{app_name} package is installed.[/yellow]")
             found = True
 
     app_variants = ["throne", "Throne"] if app_name == "throne" else ["nekoray", "NekoRay"]
@@ -1067,7 +1031,7 @@ def check_installations(app_name: str) -> bool:
         ]
         for location in locations:
             if os.path.isdir(location) or os.path.isfile(location):
-                typer.echo(color(f"Found system installation: {location}", YELLOW))
+                console.print(f"[yellow]Found system installation: {location}[/yellow]")
                 found = True
     return found
 
@@ -1090,7 +1054,13 @@ def download_file(url: str, dest_path: str) -> None:
     with (
         urlopen(req, timeout=HTTP_TIMEOUT) as response,
         open(dest_path, "wb") as handle,
+        Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+        ) as progress,
     ):
+        progress.add_task("[cyan]Downloading...", total=None)
         while True:
             chunk = response.read(1024 * 1024)
             if not chunk:
@@ -1110,9 +1080,9 @@ def zip_dir(source_dir: str, dest_zip: str) -> None:
 def ensure_linux_command(cmd: str, hint: str | None = None) -> bool:
     if which(cmd):
         return True
-    typer.echo(color(f"❌ '{cmd}' command not found. Please install it.", RED))
+    console.print(f"[red]❌ '{cmd}' command not found. Please install it.[/red]")
     if hint:
-        typer.echo(hint)
+        console.print(hint)
     return False
 
 
@@ -1265,21 +1235,63 @@ def get_service() -> PlatformService:
         return MacOSService()
     if sys_platform.startswith("win"):
         return WindowsService()
-    typer.echo(color("Unsupported platform. This tool supports Linux, macOS, and Windows.", RED))
+    console.print("[red]Unsupported platform. This tool supports Linux, macOS, and Windows.[/red]")
     raise typer.Exit(1)
 
 
+class StyledGroup(typer.core.TyperGroup):
+    def format_help(self, ctx: typer.Context, formatter: object) -> None:
+        show_styled_help(ctx)
+
+
+def show_styled_help(ctx: typer.Context) -> None:
+    show_banner(get_service().platform_name)
+
+    group = ctx.parent.command if ctx.parent is not None else ctx.command
+    cmd_path = ctx.parent.command_path if ctx.parent is not None else ctx.command_path
+
+    console.print("[bold]Usage:[/bold]")
+    console.print(f"  {cmd_path} [OPTIONS] COMMAND [ARGS]...\n")
+
+    commands = group.commands
+    if commands:
+        console.print("[bold]Commands:[/bold]")
+        table = Table(show_header=False, box=box.SIMPLE, padding=0)
+        table.add_column("Command", style="cyan", no_wrap=True)
+        table.add_column("Description")
+        for name, cmd in sorted(commands.items()):
+            if cmd.hidden:
+                continue
+            short_help = cmd.get_short_help_str(limit=60)
+            table.add_row(f"  {name}", short_help)
+        console.print(table)
+        console.print()
+
+    console.print("[bold]Options:[/bold]")
+    table = Table(show_header=False, box=box.SIMPLE, padding=0)
+    table.add_column("Option", style="cyan", no_wrap=True)
+    table.add_column("Description")
+    for param in group.params:
+        if param.name in ("help", "install_completion", "show_completion"):
+            continue
+        opts = ", ".join(param.opts)
+        help_text = param.help or ""
+        table.add_row(f"  {opts}", help_text)
+    table.add_row("  -h/--help", "Show this message and exit")
+    console.print(table)
+
+
 app = typer.Typer(
-    invoke_without_command=True,
-    no_args_is_help=True,
+    cls=StyledGroup,
+    context_settings={"help_option_names": ["--help", "-h"]},
 )
 
 
-@app.callback()
-def main(ctx: typer.Context) -> None:
+@app.callback(invoke_without_command=True)
+def master(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
-        show_banner(get_service().platform_name)
-        typer.echo(ctx.get_help())
+        show_styled_help(ctx)
+        raise typer.Exit()
 
 
 @app.command()
@@ -1353,7 +1365,7 @@ def hotspot_enable(
     show_banner(get_service().platform_name)
     service = get_service()
     if not isinstance(service, (LinuxService, MacOSService)):
-        typer.echo(color("Hotspot commands are supported on Linux/macOS only.", RED))
+        console.print("[red]Hotspot commands are supported on Linux/macOS only.[/red]")
         raise typer.Exit(1)
     service.enable_hotspot(dry_run=dry_run, iface=iface, ssid=ssid, password=password)
 
@@ -1366,7 +1378,7 @@ def hotspot_disable(
     show_banner(get_service().platform_name)
     service = get_service()
     if not isinstance(service, (LinuxService, MacOSService)):
-        typer.echo(color("Hotspot commands are supported on Linux/macOS only.", RED))
+        console.print("[red]Hotspot commands are supported on Linux/macOS only.[/red]")
         raise typer.Exit(1)
     service.disable_hotspot(dry_run=dry_run)
 
@@ -1374,5 +1386,9 @@ def hotspot_disable(
 app.add_typer(hotspot_app, name="hotspot")
 
 
-if __name__ == "__main__":
+def main() -> None:
     app()
+
+
+if __name__ == "__main__":
+    main()
