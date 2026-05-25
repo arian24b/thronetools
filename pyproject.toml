@@ -1,7 +1,7 @@
 [project]
 name = "thronetools"
 version = "1.0.4"
-description = "Cross-platform installer and management CLI for Throne"
+description = "CLI tool for Throne - xray client"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -21,7 +21,8 @@ classifiers = [
 ]
 keywords = ["throne", "cli", "installer", "hotspot", "proxy"]
 dependencies = [
-    "typer>=0.24.0",
+    "rich>=15.0.0",
+    "typer>=0.25.1",
 ]
 
 [project.scripts]
@@ -77,4 +78,6 @@ ignore = [
     "S101",   # Use of assert detected (needed for tests)
     "T20",    # print statements (CLI tool)
     "A003",   # Class attribute shadows builtin
+    "B008",   # Function calls in arg defaults (Typer/Click idiom)
+    "SIM115", # Open without context manager (intentional in follow_log)
 ]

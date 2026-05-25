@@ -1,13 +1,14 @@
-name: Build and Release
+name: Release
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
   id-token: write
 
 jobs:
@@ -18,31 +19,28 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up UV
         uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.14"
 
       - name: Install dependencies
-        run: |
-          uv tool install python-semantic-release
+        run: uv sync
 
       - name: Configure Git
         run: |
           git config user.name ${{ github.actor }}
           git config user.email ${{ github.actor }}@users.noreply.github.com
 
-      - name: Semantic Release (Version, Tag, GitHub Release)
-        id: semantic-release
+      - name: Run semantic release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          semantic-release version --changelog --tag
-      - name: Build
+        run: uvx python-semantic-release version --changelog --tag
+
+      - name: Build package
         run: uv build
-      - name: Publish package distributions to PyPI
+
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,11 +1,17 @@
 # ThroneTools
 
-Cross-platform CLI to install, reinstall, uninstall, and manage configuration for **Throne** and **NekoRay** on Linux, macOS, and Windows.
+Cross-platform CLI to install, reinstall, uninstall, and manage configuration for **Throne**(NekoRay) on Linux, macOS, and Windows.
 
 ## Requirements
 
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/)
+
+## Features
+
+- **Cross-platform** — Linux, macOS, and Windows support
+- **Self-update** — Update Throne to the latest release with one command
+- **Geo data management** — Install and verify geoip/geosite databases for sing-box
 
 ## Quick Start (uv)
 
@@ -15,23 +21,23 @@ uv sync
 uv run thronetools --help
 ```
 
-### Interactive mode
-
-Run without subcommands to open the interactive menu:
+Run without subcommands to show the styled help:
 
 ```bash
-uv run python thronetools.py
+uv run thronetools
 ```
 
 ## Commands
 
 ```bash
 thronetools install
+thronetools update --app {throne|nekoray}
 thronetools backup --app {throne|nekoray} [--output <path-or-dir>]
 thronetools restore --app {throne|nekoray} --zip <backup.zip>
 thronetools remove --app {throne|nekoray}
 thronetools reinstall --app {throne|nekoray} [--backup] [--output <path-or-dir>] [--force]
-thronetools info --app {throne|nekoray}
+thronetools version --app {throne|nekoray}
+thronetools geo-install --app {throne|nekoray}
 thronetools hotspot enable [--iface <iface>] [--ssid <name>] [--password <pass>] [--dry-run]
 thronetools hotspot disable [--dry-run]
 ```
@@ -41,6 +47,12 @@ thronetools hotspot disable [--dry-run]
 ```bash
 # Install Throne
 uv run thronetools install
+
+# Update Throne to the latest version
+uv run thronetools update --app throne
+
+# Install/update geoip and geosite databases
+uv run thronetools geo-install --app throne
 
 # Backup Throne config to current directory
 uv run thronetools backup --app throne
@@ -55,7 +67,7 @@ uv run thronetools restore --app throne --zip ~/Backups/throne-backup-2026-02-17
 uv run thronetools reinstall --app throne --backup
 
 # Show installed app details
-uv run thronetools info --app throne
+uv run thronetools version --app throne
 
 # Preview hotspot commands without applying changes
 uv run thronetools hotspot enable --iface wlp2s0 --dry-run
@@ -77,6 +89,14 @@ uv run ruff format .
 uv build
 ```
 
+## Related Projects
+
+Explore other CLI tools by Arian Omrani:
+
+- **[LinkCovery](https://github.com/arian24b/linkcovery)** - Modern bookmark management CLI tool
+- **[PEM](https://github.com/arian24b/pem)** - Python Execution Manager - Schedule and execute Python scripts
+- **[OllamaTools](https://github.com/arian24b/ollamatools)** - CLI tool for managing Ollama models
+
 ## Install as a tool (optional)
 
 If you want a globally available command via `uv`:
@@ -91,3 +111,11 @@ To update later:
 ```bash
 uv tool upgrade thronetools
 ```
+
+## License
+
+MIT License — see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Feel free to submit a pull request.
