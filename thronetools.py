@@ -417,17 +417,23 @@ class LinuxService(PlatformService):
 
         if not ensure_linux_command(
             "nmcli",
-            "   Debian/Ubuntu: sudo apt install network-manager\n   Fedora:        sudo dnf install NetworkManager\n   Arch:          sudo pacman -S networkmanager",
+            "   Debian/Ubuntu: sudo apt install network-manager\n"
+            "   Fedora:        sudo dnf install NetworkManager\n"
+            "   Arch:          sudo pacman -S networkmanager",
         ):
             raise typer.Exit(1)
         if not ensure_linux_command(
             "iw",
-            "   Debian/Ubuntu: sudo apt install iw\n   Fedora:        sudo dnf install iw\n   Arch:          sudo pacman -S iw",
+            "   Debian/Ubuntu: sudo apt install iw\n"
+            "   Fedora:        sudo dnf install iw\n"
+            "   Arch:          sudo pacman -S iw",
         ):
             raise typer.Exit(1)
         if not ensure_linux_command(
             "nft",
-            "   Debian/Ubuntu: sudo apt install nftables\n   Fedora:        sudo dnf install nftables\n   Arch:          sudo pacman -S nftables",
+            "   Debian/Ubuntu: sudo apt install nftables\n"
+            "   Fedora:        sudo dnf install nftables\n"
+            "   Arch:          sudo pacman -S nftables",
         ):
             raise typer.Exit(1)
 
@@ -657,7 +663,7 @@ class MacOSService(PlatformService):
                 console.print(
                     "[red]Permission denied while moving app to /Applications. Run this script with sudo.[/red]",
                 )
-                raise typer.Exit(1)
+                raise typer.Exit(1) from None
 
         console.print()
         console.print(f"[green]Done! {THRONE_APP_NAME} has been installed to /Applications.[/green]")
@@ -883,10 +889,10 @@ class WindowsService(PlatformService):
             console.print(f"Download completed: {installer_path}")
             console.print("Launching installer...")
             try:
-                Popen([installer_path], shell=False)
+                Popen([installer_path], shell=False)  # noqa: S603
             except OSError as exc:
                 console.print(f"[red]Failed to launch installer: {exc}[/red]")
-                raise typer.Exit(1)
+                raise typer.Exit(1) from exc
             console.print("Installer launched. Exiting.")
         else:
             console.print("[red]Download failed.[/red]")
@@ -927,10 +933,11 @@ class WindowsService(PlatformService):
         if uninstallers:
             console.print(f"Launching uninstaller: {uninstallers[0]}")
             try:
-                Popen([uninstallers[0]], shell=False)
+                Popen([uninstallers[0]], shell=False)  # noqa: S603
             except OSError as exc:
                 console.print(f"[red]Failed to launch uninstaller: {exc}[/red]")
                 console.print("Please uninstall using Windows Apps & Features.")
+                raise typer.Exit(1) from exc
         else:
             console.print("[yellow]Uninstaller not found.[/yellow]")
             console.print("Please uninstall using Windows Apps & Features.")
@@ -964,7 +971,7 @@ def run_cmd(cmd: str | list[str], dry_run: bool = False, shell: bool = False) ->
         console.print(f"[blue]{cmd_str}[/blue]")
         return None
     if shell or isinstance(cmd, str):
-        result = subprocess_run(cmd, shell=shell, capture_output=True, text=True)
+        result = subprocess_run(cmd, shell=shell, capture_output=True, text=True)  # noqa: S603
         return CMDOutput(
             output_text=result.stdout.strip(),
             error_text=result.stderr.strip(),
@@ -975,7 +982,7 @@ def run_cmd(cmd: str | list[str], dry_run: bool = False, shell: bool = False) ->
 
 def run_capture(cmd: str | list[str]) -> CMDOutput:
     if isinstance(cmd, str):
-        result = subprocess_run(cmd, capture_output=True, text=True, check=False, shell=True)
+        result = subprocess_run(cmd, capture_output=True, text=True, check=False, shell=True)  # noqa: S602
         return CMDOutput(
             output_text=result.stdout.strip(),
             error_text=result.stderr.strip(),
@@ -1031,22 +1038,22 @@ def check_installations(app_name: str) -> bool:
 
 
 def github_latest_release() -> dict:
-    req = Request(
+    req = Request(  # noqa: S310
         THRONE_URL,
         headers={
             "Accept": "application/vnd.github+json",
             "User-Agent": "ThroneInstaller",
         },
     )
-    with urlopen(req, timeout=HTTP_TIMEOUT) as response:
+    with urlopen(req, timeout=HTTP_TIMEOUT) as response:  # noqa: S310
         data = response.read()
     return loads(data.decode("utf-8"))
 
 
 def download_file(url: str, dest_path: str) -> None:
-    req = Request(url, headers={"User-Agent": "ThroneTools"})
+    req = Request(url, headers={"User-Agent": "ThroneTools"})  # noqa: S310
     with (
-        urlopen(req, timeout=HTTP_TIMEOUT) as response,
+        urlopen(req, timeout=HTTP_TIMEOUT) as response,  # noqa: S310
         open(dest_path, "wb") as handle,
         Progress(
             SpinnerColumn(),
