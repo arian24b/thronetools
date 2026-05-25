@@ -10,6 +10,8 @@ Cross-platform CLI to install, reinstall, uninstall, and manage configuration fo
 ## Features
 
 - **Cross-platform** — Linux, macOS, and Windows support
+- **Self-update** — Update Throne to the latest release with one command
+- **Geo data management** — Install and verify geoip/geosite databases for sing-box
 
 ## Quick Start (uv)
 
@@ -29,11 +31,13 @@ uv run thronetools
 
 ```bash
 thronetools install
+thronetools update --app {throne|nekoray}
 thronetools backup --app {throne|nekoray} [--output <path-or-dir>]
 thronetools restore --app {throne|nekoray} --zip <backup.zip>
 thronetools remove --app {throne|nekoray}
 thronetools reinstall --app {throne|nekoray} [--backup] [--output <path-or-dir>] [--force]
 thronetools version --app {throne|nekoray}
+thronetools geo-install --app {throne|nekoray}
 thronetools hotspot enable [--iface <iface>] [--ssid <name>] [--password <pass>] [--dry-run]
 thronetools hotspot disable [--dry-run]
 ```
@@ -43,6 +47,12 @@ thronetools hotspot disable [--dry-run]
 ```bash
 # Install Throne
 uv run thronetools install
+
+# Update Throne to the latest version
+uv run thronetools update --app throne
+
+# Install/update geoip and geosite databases
+uv run thronetools geo-install --app throne
 
 # Backup Throne config to current directory
 uv run thronetools backup --app throne
