@@ -1,6 +1,6 @@
 [project]
 name = "thronetools"
-version = "1.0.4"
+version = "1.1.0"
 description = "CLI tool for Throne - xray client"
 readme = "README.md"
 requires-python = ">=3.10"
