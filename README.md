@@ -2,6 +2,18 @@
 
 Cross-platform CLI to install, reinstall, uninstall, and manage configuration for **Throne**(NekoRay) on Linux, macOS, and Windows.
 
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![GitHub stars](https://img.shields.io/github/stars/arian24b/thronetools.svg?style=social&label=Star)](https://github.com/arian24b/thronetools)
+[![GitHub forks](https://img.shields.io/github/forks/arian24b/thronetools.svg?style=social&label=Fork)](https://github.com/arian24b/thronetools)
+[![GitHub issues](https://img.shields.io/github/issues/arian24b/thronetools.svg)](https://github.com/arian24b/thronetools/issues)
+<p align="center">
+<a href="https://github.com/arian24b/black/actions"><img alt="Actions Status" src="https://github.com/arian24b/black/workflows/Test/badge.svg"></a>
+<a href="https://coveralls.io/github/arian24b/black?branch=main"><img alt="Coverage Status" src="https://coveralls.io/repos/github/arian24b/black/badge.svg?branch=main"></a>
+<a href="https://github.com/arian24b/black/blob/main/LICENSE"><img alt="License: MIT" src="https://black.readthedocs.io/en/stable/_static/license.svg"></a>
+<a href="https://pypi.org/project/thronetools/"><img alt="PyPI" src="https://img.shields.io/pypi/v/thronetools"></a>
+<a href="https://pypi.org/project/thronetools"><img alt="Supported Python Versions" src="https://img.shields.io/pypi/pyversions/thronetools?color=brightgreen"></a>
+</p>
+
 ## Requirements
 
 - Python 3.10+
