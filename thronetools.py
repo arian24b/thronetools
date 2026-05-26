@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import new as hash_new
+from importlib.metadata import version as pkg_version
 from json import loads
 from platform import machine
 from plistlib import InvalidFileException
@@ -30,7 +31,7 @@ console = Console()
 THRONE_URL = "https://api.github.com/repos/throneproj/Throne/releases/latest"
 THRONE_APP_NAME = "Throne"
 LINUX_SSID = "thronetools"
-LINUX_TUN_IFACE = "nekoray-tun"
+LINUX_TUN_IFACE = "throne-tun"
 LINUX_NFT_TABLE = "throne_hotspot"
 LINUX_REQUIRED_INET_TABLE = "sing-box"
 HTTP_TIMEOUT = 15
@@ -41,7 +42,7 @@ GEOIP_SHA_URL = "https://github.com/sagernet/sing-geoip/releases/latest/download
 GEOSITE_URL = "https://github.com/sagernet/sing-geosite/releases/latest/download/geosite.db"
 GEOSITE_SHA_URL = "https://github.com/sagernet/sing-geosite/releases/latest/download/geosite.db.sha256sum"
 GEO_FILE_TYPES = {"geoip", "geosite"}
-PROMPT_APP_TEXT = "Enter which app (nekoray, throne): "
+PROMPT_APP_TEXT = "Enter which app (throne, nekoray): "
 
 
 BANNER = r"""
@@ -1260,6 +1261,7 @@ def _show_version_table(app_name: str, version: str, install_path: str) -> None:
     table.add_column("Value")
     table.add_row("App", app_name)
     table.add_row("Version", version or "unknown")
+    table.add_row("ThroneTools", pkg_version("thronetools"))
     table.add_row("Install path", install_path or "not found")
     console.print(table)
 
@@ -1282,8 +1284,6 @@ class StyledGroup(typer.core.TyperGroup):
 
 
 def show_styled_help(ctx: typer.Context) -> None:
-    show_banner(get_service().platform_name)
-
     group = ctx.parent.command if ctx.parent is not None else ctx.command
     cmd_path = ctx.parent.command_path if ctx.parent is not None else ctx.command_path
 
@@ -1335,7 +1335,6 @@ def master(ctx: typer.Context) -> None:
 @app.command()
 def install() -> None:
     """Install Throne."""
-    show_banner(get_service().platform_name)
     get_service().install()
 
 
@@ -1345,7 +1344,6 @@ def backup(
     output: str | None = typer.Option(None, "--output", help="Output directory or file path"),
 ) -> None:
     """Backup configuration."""
-    show_banner(get_service().platform_name)
     get_service().backup(app_name=app, output_path=output)
 
 
@@ -1355,7 +1353,6 @@ def restore(
     zip_file: str = typer.Option(..., "--zip", help="Path to backup .zip file"),
 ) -> None:
     """Restore configuration."""
-    show_banner(get_service().platform_name)
     get_service().restore(app_name=app, zip_file=zip_file)
 
 
@@ -1364,7 +1361,6 @@ def remove(
     app: str = typer.Option(..., "--app", help="throne or nekoray"),
 ) -> None:
     """Uninstall Throne or NekoRay."""
-    show_banner(get_service().platform_name)
     get_service().uninstall(app_name=app)
 
 
@@ -1376,7 +1372,6 @@ def reinstall(
     force: bool = typer.Option(False, "--force", help="Proceed even if not installed"),
 ) -> None:
     """Reinstall Throne."""
-    show_banner(get_service().platform_name)
     get_service().reinstall(app_name=app, backup=backup, output_path=output, force=force)
 
 
@@ -1385,7 +1380,6 @@ def version(
     app: str = typer.Option("throne", "--app", help="throne or nekoray"),
 ) -> None:
     """Show installed version and path."""
-    # show_banner(get_service().platform_name)
     get_service().version(app_name=app)
 
 
@@ -1394,7 +1388,6 @@ def update(
     app: str = typer.Option("throne", "--app", help="throne or nekoray"),
 ) -> None:
     """Update Throne to the latest version."""
-    show_banner(get_service().platform_name)
     get_service().update(app_name=app)
 
 
@@ -1403,7 +1396,6 @@ def geo_install(
     app: str = typer.Option("throne", "--app", help="throne or nekoray"),
 ) -> None:
     """Install geoip and geosite files."""
-    show_banner(get_service().platform_name)
     get_service().install_geo()
 
 
@@ -1418,7 +1410,6 @@ def hotspot_enable(
     password: str | None = typer.Option(None, "--password", help="Hotspot password (min 8 chars)"),
 ) -> None:
     """Enable hotspot."""
-    show_banner(get_service().platform_name)
     service = get_service()
     if not isinstance(service, (LinuxService, MacOSService)):
         console.print("[red]Hotspot commands are supported on Linux/macOS only.[/red]")
@@ -1431,7 +1422,6 @@ def hotspot_disable(
     dry_run: bool = typer.Option(False, "--dry-run", help="Run without making changes"),
 ) -> None:
     """Disable hotspot."""
-    show_banner(get_service().platform_name)
     service = get_service()
     if not isinstance(service, (LinuxService, MacOSService)):
         console.print("[red]Hotspot commands are supported on Linux/macOS only.[/red]")
@@ -1443,6 +1433,7 @@ app.add_typer(hotspot_app, name="hotspot")
 
 
 def main() -> None:
+    show_banner(get_service().platform_name)
     app()
 
 
