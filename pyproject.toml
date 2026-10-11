@@ -21,9 +21,11 @@ classifiers = [
 ]
 keywords = ["throne", "cli", "installer", "hotspot", "proxy"]
 dependencies = [
-    "rich>=15.0.0",
-    "typer>=0.25.1",
+    "cfui>=0.1.0",
 ]
+
+[tool.uv.sources]
+cfui = { path = "../cfui", editable = true }  # drop once cfui is on PyPI
 
 [project.scripts]
 thronetools = "thronetools:main"

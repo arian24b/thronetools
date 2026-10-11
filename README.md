@@ -39,12 +39,12 @@ uv run thronetools
 
 ```bash
 thronetools install
-thronetools update --app {throne|nekoray}
+thronetools app-update --app {throne|nekoray}
 thronetools backup --app {throne|nekoray} [--output <path-or-dir>]
 thronetools restore --app {throne|nekoray} --zip <backup.zip>
 thronetools remove --app {throne|nekoray}
 thronetools reinstall --app {throne|nekoray} [--backup] [--output <path-or-dir>] [--force]
-thronetools version --app {throne|nekoray}
+thronetools app-version --app {throne|nekoray}
 thronetools geo-install --app {throne|nekoray}
 thronetools hotspot enable [--iface <iface>] [--ssid <name>] [--password <pass>] [--dry-run]
 thronetools hotspot disable [--dry-run]
@@ -57,7 +57,7 @@ thronetools hotspot disable [--dry-run]
 uv run thronetools install
 
 # Update Throne to the latest version
-uv run thronetools update --app throne
+uv run thronetools app-update --app throne
 
 # Install/update geoip and geosite databases
 uv run thronetools geo-install --app throne
@@ -75,7 +75,7 @@ uv run thronetools restore --app throne --zip ~/Backups/throne-backup-2026-02-17
 uv run thronetools reinstall --app throne --backup
 
 # Show installed app details
-uv run thronetools version --app throne
+uv run thronetools app-version --app throne
 
 # Preview hotspot commands without applying changes
 uv run thronetools hotspot enable --iface wlp2s0 --dry-run
@@ -127,3 +127,16 @@ MIT License — see the LICENSE file for details.
 ## Contributing
 
 Contributions are welcome! Feel free to submit a pull request.
+
+## Common commands
+
+Built with [cfui](https://github.com/arian24b/cfui), so every command shares the same look and flags:
+
+```bash
+thronetools help [command]     # help
+thronetools version            # version and git repo (also: thronetools -v)
+thronetools update [--check]   # self update
+thronetools -q ...             # quiet: no banners/notes (or THRONETOOLS_QUIET=1)
+```
+
+Missing required options are asked for interactively on a TTY; in pipes/CI they fail with `--flag is required`.
