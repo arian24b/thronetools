@@ -1,142 +1,78 @@
 # ThroneTools
 
-Cross-platform CLI to install, reinstall, uninstall, and manage configuration for **Throne**(NekoRay) on Linux, macOS, and Windows.
+[فارسی](README.fa.md)
 
-[![GitHub stars](https://img.shields.io/github/stars/arian24b/thronetools.svg?style=social&label=Star)](https://github.com/arian24b/thronetools)
-[![GitHub forks](https://img.shields.io/github/forks/arian24b/thronetools.svg?style=social&label=Fork)](https://github.com/arian24b/thronetools)
-[![GitHub issues](https://img.shields.io/github/issues/arian24b/thronetools.svg)](https://github.com/arian24b/thronetools/issues)
-[![Actions Status](https://github.com/arian24b/thronetools/workflows/Test/badge.svg)](https://github.com/arian24b/thronetools/actions)
-[![Coverage Status](https://coveralls.io/repos/github/arian24b/thronetools/badge.svg?branch=main)](https://coveralls.io/github/arian24b/thronetools?branch=main)
-[![License: MIT](https://thronetools.readthedocs.io/en/stable/_static/license.svg)](https://github.com/arian24b/thronetools/blob/main/LICENSE)
-[![PyPI](https://img.shields.io/pypi/v/thronetools)](https://pypi.org/project/thronetools/)
-[![Supported Python Versions](https://img.shields.io/pypi/pyversions/thronetools?color=brightgreen)](https://pypi.org/project/thronetools)
+Cross-platform CLI to install, update, back up, restore and remove **Throne** (and the older NekoRay) on Linux, macOS and Windows. It can also install the geoip/geosite databases and turn a Wi-Fi hotspot on and off (Linux and macOS).
 
-## Requirements
+## Install
 
-- [uv](https://docs.astral.sh/uv/)
-
-## Features
-
-- **Cross-platform** — Linux, macOS, and Windows support
-- **Self-update** — Update Throne to the latest release with one command
-- **Geo data management** — Install and verify geoip/geosite databases for sing-box
-
-## Quick Start (uv)
+Python 3.12 to 3.15.
 
 ```bash
-# from repo root
-uv sync
-uv run thronetools --help
+uv tool install thronetools      # or: pipx install thronetools
+thronetools --help
 ```
 
-Run without subcommands to show the styled help:
-
-```bash
-uv run thronetools
-```
+From a clone: `uv sync && uv run thronetools --help`.
 
 ## Commands
 
+| Command | What it does |
+|---|---|
+| `install` | install Throne |
+| `app-update --app {throne,nekoray}` | update Throne to the latest release |
+| `app-version --app {throne,nekoray}` | show the installed version and install path |
+| `backup --app A [--output PATH]` | back the configuration up to a zip |
+| `restore --app A --zip FILE` | restore a backup |
+| `remove [--app A]` | uninstall Throne or NekoRay (asks which one if both are installed) |
+| `reinstall --app A [--backup] [--output PATH] [--force]` | uninstall and install again, optionally keeping a backup |
+| `geo-install --app A` | install or refresh the geoip and geosite databases |
+| `hotspot enable [--iface I] [--ssid S] [--password P] [--dry-run]` | start a hotspot (Linux, macOS) |
+| `hotspot disable [--dry-run]` | stop it |
+
+`--app` defaults to `throne` where it is optional. `restore` and `reinstall` ask for `--app` when you leave it out, and `hotspot enable` asks for the password.
+
+> `app-version` and `app-update` used to be called `version` and `update`. Those names now belong to the tool itself (see below).
+
+## Examples
+
 ```bash
 thronetools install
-thronetools app-update --app {throne|nekoray}
-thronetools backup --app {throne|nekoray} [--output <path-or-dir>]
-thronetools restore --app {throne|nekoray} --zip <backup.zip>
-thronetools remove --app {throne|nekoray}
-thronetools reinstall --app {throne|nekoray} [--backup] [--output <path-or-dir>] [--force]
-thronetools app-version --app {throne|nekoray}
-thronetools geo-install --app {throne|nekoray}
-thronetools hotspot enable [--iface <iface>] [--ssid <name>] [--password <pass>] [--dry-run]
-thronetools hotspot disable [--dry-run]
+thronetools app-update --app throne
+thronetools geo-install --app throne
+thronetools backup --app nekoray --output ~/Backups
+thronetools restore --app throne --zip ~/Backups/throne-backup-2026-02-17.zip
+thronetools reinstall --app throne --backup
+thronetools hotspot enable --iface wlp2s0 --dry-run     # print the commands, change nothing
 ```
 
-## Common Examples
+Some operations need elevated privileges, depending on the platform and package manager.
+
+## Common commands
+
+Built on [cfuicli](https://github.com/arian24b/cfui), so it looks and behaves like the other tools in this family.
 
 ```bash
-# Install Throne
-uv run thronetools install
-
-# Update Throne to the latest version
-uv run thronetools app-update --app throne
-
-# Install/update geoip and geosite databases
-uv run thronetools geo-install --app throne
-
-# Backup Throne config to current directory
-uv run thronetools backup --app throne
-
-# Backup NekoRay config to a specific folder
-uv run thronetools backup --app nekoray --output ~/Backups
-
-# Restore Throne config
-uv run thronetools restore --app throne --zip ~/Backups/throne-backup-2026-02-17.zip
-
-# Reinstall with backup + restore flow
-uv run thronetools reinstall --app throne --backup
-
-# Show installed app details
-uv run thronetools app-version --app throne
-
-# Preview hotspot commands without applying changes
-uv run thronetools hotspot enable --iface wlp2s0 --dry-run
+thronetools help [command]     # help; -h works on any command
+thronetools version            # version and git repository (also: -v)
+thronetools update [--check]   # update the tool itself; --check only compares versions
+thronetools -q ...             # quiet: no banner or notes (or THRONETOOLS_QUIET=1)
 ```
 
-## Notes
-
-- `hotspot` commands are supported on Linux and macOS. On Windows, hotspot subcommands are not available.
-- Some operations require elevated privileges depending on platform/package manager.
+- A missing required option is asked for when you run the tool in a terminal. In a pipe or in CI it stops with `--flag is required. Pass --flag <value> or run interactively.` (exit code 2).
+- Errors appear in a red box on stderr with a non-zero exit code. Ctrl-C exits with 130.
+- Color is used only on a terminal. `NO_COLOR=1` turns it off.
 
 ## Development
 
 ```bash
-# Lint/format (Ruff is configured in pyproject.toml)
-uv run ruff check .
-uv run ruff format .
-
-# Build package
+uv sync
+uv run ruff check . && uv run ruff format --check .
 uv build
 ```
 
-## Related Projects
-
-Explore other CLI tools by Arian Omrani:
-
-- **[LinkCovery](https://github.com/arian24b/linkcovery)** - Modern bookmark management CLI tool
-- **[PEM](https://github.com/arian24b/pem)** - Python Execution Manager - Schedule and execute Python scripts
-- **[OllamaTools](https://github.com/arian24b/ollamatools)** - CLI tool for managing Ollama models
-
-## Install as a tool (optional)
-
-If you want a globally available command via `uv`:
-
-```bash
-uv tool install .
-thronetools --help
-```
-
-To update later:
-
-```bash
-uv tool upgrade thronetools
-```
+Related tools: [LinkCovery](https://github.com/arian24b/linkcovery), [PEM](https://github.com/arian24b/pem), [ollama-tool-cli](https://github.com/arian24b/ollamatools).
 
 ## License
 
-MIT License — see the LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome! Feel free to submit a pull request.
-
-## Common commands
-
-Built with [cfui](https://github.com/arian24b/cfui), so every command shares the same look and flags:
-
-```bash
-thronetools help [command]     # help
-thronetools version            # version and git repo (also: thronetools -v)
-thronetools update [--check]   # self update
-thronetools -q ...             # quiet: no banners/notes (or THRONETOOLS_QUIET=1)
-```
-
-Missing required options are asked for interactively on a TTY; in pipes/CI they fail with `--flag is required`.
+MIT
