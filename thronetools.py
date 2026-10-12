@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import new as hash_new
-from importlib.metadata import version as pkg_version
 from json import loads
 from platform import machine
 from plistlib import InvalidFileException
@@ -18,15 +17,7 @@ from tempfile import TemporaryDirectory, gettempdir
 from urllib.request import Request, urlopen
 from zipfile import ZIP_DEFLATED, ZipFile
 
-import typer
-import typer.core
-from rich import box
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Confirm, Prompt
-from rich.table import Table
-
-console = Console()
+from cfui import App, Arg, Fail, ui
 
 THRONE_URL = "https://api.github.com/repos/throneproj/Throne/releases/latest"
 THRONE_APP_NAME = "Throne"
@@ -43,22 +34,6 @@ GEOSITE_URL = "https://github.com/sagernet/sing-geosite/releases/latest/download
 GEOSITE_SHA_URL = "https://github.com/sagernet/sing-geosite/releases/latest/download/geosite.db.sha256sum"
 GEO_FILE_TYPES = {"geoip", "geosite"}
 PROMPT_APP_TEXT = "Enter which app (throne, nekoray): "
-
-
-BANNER = r"""
-████████╗██╗  ██╗██████╗  ██████╗ ███╗   ██╗███████╗
-╚══██╔══╝██║  ██║██╔══██╗██╔═══██╗████╗  ██║██╔════╝
-   ██║   ███████║██████╔╝██║   ██║██╔██╗ ██║█████╗
-   ██║   ██╔══██║██╔══██╗██║   ██║██║╚██╗██║██╔══╝
-   ██║   ██║  ██║██║  ██║╚██████╔╝██║ ╚████║███████╗
-   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
-    ████████╗ ██████╗  ██████╗ ██╗     ███████╗
-    ╚══██╔══╝██╔═══██╗██╔═══██╗██║     ██╔════╝
-       ██║   ██║   ██║██║   ██║██║     ███████╗
-       ██║   ██║   ██║██║   ██║██║     ╚════██║
-       ██║   ╚██████╔╝╚██████╔╝███████╗███████║
-       ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚══════╝
-"""
 
 
 @dataclass
@@ -102,55 +77,55 @@ class PlatformService(ABC):
 
     def _download_and_verify_geo(self, name: str, url: str, sha_url: str, dest_dir: str) -> None:
         dest_path = os.path.join(dest_dir, f"{name}.db")
-        console.print(f"Downloading {name}.db...")
+        ui.info(f"Downloading {name}.db...")
         download_file(url, dest_path)
-        console.print("Verifying SHA-256 checksum...")
+        ui.info("Verifying SHA-256 checksum...")
         sha_dest = dest_path + ".sha256sum"
         download_file(sha_url, sha_dest)
         if verify_sha256(dest_path, sha_dest):
-            console.print(f"[green]{name}.db checksum verified.[/green]")
+            ui.info(f"{name}.db checksum verified.")
         else:
-            console.print(f"[red]{name}.db checksum verification failed.[/red]")
+            ui.error(f"{name}.db checksum verification failed.")
             os.remove(dest_path)
-            raise typer.Exit(1)
+            raise SystemExit(1)
         os.remove(sha_dest)
 
     @staticmethod
     def _resolve_dry_run(dry_run: bool | None) -> bool:
         if dry_run is None:
-            dry_run = Confirm.ask("[yellow]Run in dry-run mode[/yellow]")
+            dry_run = ui.confirm("Run in dry-run mode")
         if dry_run:
-            console.print("[yellow]Running in dry-run mode — no changes will be made.[/yellow]")
+            ui.warning("Running in dry-run mode — no changes will be made.")
         return dry_run
 
     def _detect_and_guide_install(self) -> bool:
         installed = detect_installed_apps()
 
         if "throne" in installed and "nekoray" in installed:
-            console.print("[yellow]Both Throne and NekoRay are installed.[/yellow]")
-            console.print("[yellow]NekoRay is deprecated. It is recommended to keep only Throne.[/yellow]")
-            if Confirm.ask("[yellow]Remove NekoRay?[/yellow]", default=True):
+            ui.warning("Both Throne and NekoRay are installed.")
+            ui.warning("NekoRay is deprecated. It is recommended to keep only Throne.")
+            if ui.confirm("Remove NekoRay?", default=True):
                 self.uninstall(app_name="nekoray", skip_check=True)
-                console.print("[green]NekoRay removed. Throne is ready to use.[/green]")
+                ui.info("NekoRay removed. Throne is ready to use.")
             else:
-                console.print("[yellow]Keeping NekoRay. You can remove it later with the remove command.[/yellow]")
-            console.print()
+                ui.warning("Keeping NekoRay. You can remove it later with the remove command.")
+            ui.out()
             return False
 
         if "throne" in installed:
-            console.print(f"[green]{THRONE_APP_NAME} is already installed.[/green]")
-            console.print()
+            ui.info(f"{THRONE_APP_NAME} is already installed.")
+            ui.out()
             return False
 
         if "nekoray" in installed:
-            console.print("[yellow]NekoRay is installed.[/yellow]")
-            console.print("[yellow]NekoRay is deprecated. Would you like to upgrade to Throne?[/yellow]")
-            if Confirm.ask("[yellow]Upgrade to Throne? (This will remove NekoRay)[/yellow]", default=True):
+            ui.warning("NekoRay is installed.")
+            ui.warning("NekoRay is deprecated. Would you like to upgrade to Throne?")
+            if ui.confirm("Upgrade to Throne? (This will remove NekoRay)", default=True):
                 self.uninstall(app_name="nekoray", skip_check=True)
-                console.print("[green]NekoRay removed. Proceeding with Throne installation...[/green]")
-                console.print()
+                ui.info("NekoRay removed. Proceeding with Throne installation...")
+                ui.out()
                 return True
-            console.print()
+            ui.out()
             return False
 
         return True
@@ -169,56 +144,56 @@ class PlatformService(ABC):
     def version(self, app_name: str) -> None: ...
 
     def backup(self, app_name: str, output_path: str | None) -> str:
-        console.print("[bold]BACKUP CONFIGURATION[/bold]")
-        console.print()
+        ui.heading("BACKUP CONFIGURATION")
+        ui.out()
         if not app_name:
             app_name = prompt_app_name()
         config_dir = self._config_dir(app_name)
         if not config_dir or not os.path.isdir(config_dir):
-            console.print(f"[red]Config directory does not exist: {config_dir}[/red]")
-            raise typer.Exit(1)
+            ui.error(f"Config directory does not exist: {config_dir}")
+            raise SystemExit(1)
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
         backup_name = f"{app_name}-backup-{date_str}.zip"
         if output_path:
             dest_path = os.path.join(output_path, backup_name) if os.path.isdir(output_path) else output_path
         else:
             dest_path = os.path.join(os.getcwd(), backup_name)
-        console.print(f"Compressing config from {config_dir}...")
+        ui.info(f"Compressing config from {config_dir}...")
         zip_dir(config_dir, dest_path)
-        console.print("[green]Backup created:[/green]")
-        console.print(f"[green]{dest_path}[/green]")
-        console.print()
+        ui.info("Backup created:")
+        ui.info(f"{dest_path}")
+        ui.out()
         return dest_path
 
     def restore(self, app_name: str, zip_file: str) -> None:
-        console.print("[bold]RESTORE CONFIGURATION[/bold]")
-        console.print()
+        ui.heading("RESTORE CONFIGURATION")
+        ui.out()
         if not zip_file:
-            zip_file = Prompt.ask("[bold]Enter the path to the backup .zip file[/bold]").strip()
+            zip_file = ui.ask("Enter the path to the backup .zip file").strip()
         if not zip_file:
-            console.print("[red]Please provide the path to the backup .zip file.[/red]")
-            raise typer.Exit(1)
+            ui.error("Please provide the path to the backup .zip file.")
+            raise SystemExit(1)
         if not os.path.isfile(zip_file):
-            console.print(f"[red]File not found: {zip_file}[/red]")
-            raise typer.Exit(1)
+            ui.error(f"File not found: {zip_file}")
+            raise SystemExit(1)
         if not app_name:
             app_name = prompt_app_name()
         base_dir = self._base_dir(app_name)
         restore_dir = self._config_dir(app_name)
         if not base_dir:
-            console.print("[red]Target configuration directory does not exist for this app.[/red]")
-            raise typer.Exit(1)
+            ui.error("Target configuration directory does not exist for this app.")
+            raise SystemExit(1)
         if not os.path.isdir(base_dir):
             os.makedirs(base_dir, exist_ok=True)
         if os.path.isdir(restore_dir):
-            console.print(f"Removing existing config: {restore_dir}")
+            ui.info(f"Removing existing config: {restore_dir}")
             rmtree(restore_dir)
         os.makedirs(restore_dir, exist_ok=True)
-        console.print(f"Restoring backup to: {restore_dir}")
+        ui.info(f"Restoring backup to: {restore_dir}")
         with ZipFile(zip_file, "r") as handle:
             handle.extractall(restore_dir)
-        console.print("[green]Restore complete![/green]")
-        console.print()
+        ui.info("Restore complete!")
+        ui.out()
 
     def reinstall(
         self,
@@ -228,9 +203,7 @@ class PlatformService(ABC):
         force: bool = False,
     ) -> None:
         if app_name == "nekoray":
-            console.print(
-                "[yellow]Installer only supports Throne packages; reinstall will install Throne.[/yellow]",
-            )
+            ui.warning("Installer only supports Throne packages; reinstall will install Throne.")
         backup_path = None
         if backup:
             backup_path = self.backup(app_name=app_name, output_path=output_path)
@@ -240,60 +213,60 @@ class PlatformService(ABC):
             self.restore(app_name=app_name, zip_file=backup_path)
 
     def update(self, app_name: str) -> None:
-        console.print("[bold]UPDATE[/bold]")
-        console.print()
+        ui.heading("UPDATE")
+        ui.out()
         if app_name == "throne":
             installed = detect_installed_apps()
             if "nekoray" in installed and "throne" not in installed:
-                console.print("[yellow]NekoRay is installed. Would you like to upgrade to Throne?[/yellow]")
-                if Confirm.ask("[yellow]Upgrade to Throne? (This will remove NekoRay)[/yellow]", default=True):
+                ui.warning("NekoRay is installed. Would you like to upgrade to Throne?")
+                if ui.confirm("Upgrade to Throne? (This will remove NekoRay)", default=True):
                     self.uninstall(app_name="nekoray", skip_check=True)
                     self.install()
                     return
-                console.print()
+                ui.out()
                 return
             if "nekoray" in installed:
-                console.print("[yellow]NekoRay is installed alongside Throne. Remove it?[/yellow]")
-                if Confirm.ask("[yellow]Remove NekoRay?[/yellow]", default=True):
+                ui.warning("NekoRay is installed alongside Throne. Remove it?")
+                if ui.confirm("Remove NekoRay?", default=True):
                     self.uninstall(app_name="nekoray", skip_check=True)
         elif app_name == "nekoray":
-            console.print("[yellow]NekoRay is deprecated. Use 'thronetools install' to upgrade to Throne.[/yellow]")
-            console.print()
+            ui.warning("NekoRay is deprecated. Use 'thronetools install' to upgrade to Throne.")
+            ui.out()
             return
-        console.print(f"Checking current version of {app_name}...")
+        ui.info(f"Checking current version of {app_name}...")
         current_version = self._current_version(app_name)
-        console.print("Fetching latest release...")
+        ui.info("Fetching latest release...")
         release = github_latest_release()
         latest_tag = release.get("tag_name", "")
         latest_version = latest_tag.lstrip("v")
         if current_version and current_version >= latest_version:
-            console.print(f"[green]{app_name} is already up to date at version {current_version}.[/green]")
-            console.print()
+            ui.info(f"{app_name} is already up to date at version {current_version}.")
+            ui.out()
             return
         if current_version:
-            console.print(f"Current version: {current_version}")
-            console.print(f"Latest version: {latest_version}")
-            console.print(f"Updating {app_name} to {latest_version}...")
+            ui.info(f"Current version: {current_version}")
+            ui.info(f"Latest version: {latest_version}")
+            ui.info(f"Updating {app_name} to {latest_version}...")
         else:
-            console.print(f"Latest version: {latest_version}")
-            console.print(f"Installing {app_name} {latest_version}...")
+            ui.info(f"Latest version: {latest_version}")
+            ui.info(f"Installing {app_name} {latest_version}...")
         self.uninstall(app_name=app_name, skip_check=True)
         self.install()
 
     def install_geo(self) -> None:
-        console.print("[bold]INSTALL GEO FILES[/bold]")
-        console.print()
+        ui.heading("INSTALL GEO FILES")
+        ui.out()
         app_name = prompt_app_name()
         config_dir = self._config_dir(app_name)
         base_dir = self._base_dir(app_name)
         if not base_dir or not config_dir:
-            console.print("[red]Unrecognized app name.[/red]")
-            raise typer.Exit(1)
+            ui.error("Unrecognized app name.")
+            raise SystemExit(1)
         os.makedirs(config_dir, exist_ok=True)
         self._download_and_verify_geo("geoip", GEOIP_URL, GEOIP_SHA_URL, config_dir)
         self._download_and_verify_geo("geosite", GEOSITE_URL, GEOSITE_SHA_URL, config_dir)
-        console.print("[green]Geo files installed successfully![/green]")
-        console.print()
+        ui.success("Geo files installed successfully!")
+        ui.out()
 
     # Optional: hotspot support (can raise NotImplementedError on Windows)
     def enable_hotspot(
@@ -330,19 +303,19 @@ class LinuxService(PlatformService):
         return linux_package_version(app_name) or ""
 
     def install(self) -> None:
-        console.print("[bold]INSTALLATION[/bold]")
-        console.print()
+        ui.heading("INSTALLATION")
+        ui.out()
         if not self._detect_and_guide_install():
             return
 
-        console.print("[green]Proceeding with Throne installation...[/green]")
-        console.print()
+        ui.info("Proceeding with Throne installation...")
+        ui.out()
 
         os_release = read_os_release()
         distro = os_release.get("ID", "").lower()
         if not distro:
-            console.print("[red]Cannot detect Linux distribution.[/red]")
-            raise typer.Exit(1)
+            ui.error("Cannot detect Linux distribution.")
+            raise SystemExit(1)
 
         if distro in {"ubuntu", "debian", "linuxmint", "pop"}:
             package_type = "deb"
@@ -357,15 +330,15 @@ class LinuxService(PlatformService):
             fix_cmd = ["sudo", "dnf", "install", "-y"]
             package_pattern = r"Throne.*\.el.*\.rpm"
         else:
-            console.print(f"[red]Unsupported distribution: {distro}[/red]")
-            console.print("[red]Supported distributions: Ubuntu, Debian, Fedora, RHEL, CentOS[/red]")
-            raise typer.Exit(1)
+            ui.error(f"Unsupported distribution: {distro}")
+            ui.error("Supported distributions: Ubuntu, Debian, Fedora, RHEL, CentOS")
+            raise SystemExit(1)
 
         if not which(package_manager):
-            console.print(f"[red]{package_manager} is not installed.[/red]")
-            raise typer.Exit(1)
+            ui.error(f"{package_manager} is not installed.")
+            raise SystemExit(1)
 
-        console.print("Fetching latest Throne release information...")
+        ui.info("Fetching latest Throne release information...")
         release = github_latest_release()
         assets = release.get("assets", [])
         target_asset = None
@@ -377,57 +350,53 @@ class LinuxService(PlatformService):
                 break
 
         if not target_asset:
-            console.print(f"[red]Could not find {package_type} package in the latest release.[/red]")
-            console.print("[red]Available packages:[/red]")
+            ui.error(f"Could not find {package_type} package in the latest release.")
+            ui.error("Available packages:")
             for asset in assets:
-                console.print(asset.get("name", ""))
-            raise typer.Exit(1)
+                ui.out(asset.get("name", ""))
+            raise SystemExit(1)
 
         package_url = target_asset.get("browser_download_url")
         package_name = target_asset.get("name")
-        console.print(f"Downloading {package_name}...")
+        ui.info(f"Downloading {package_name}...")
 
         with TemporaryDirectory() as tmpdir:
             dest = os.path.join(tmpdir, package_name)
             download_file(package_url, dest)
-            console.print(f"Installing Throne {package_type} package...")
+            ui.info(f"Installing Throne {package_type} package...")
             result = run_cmd([*install_cmd, dest])
             if result and result.return_code == 0:
-                console.print("[green]Throne installed successfully![/green]")
+                ui.success("Throne installed successfully!")
             else:
-                console.print(
-                    "[yellow]Installation completed with some warnings. Fixing dependencies...[/yellow]",
-                )
+                ui.warning("Installation completed with some warnings. Fixing dependencies...")
                 run_cmd(fix_cmd)
 
-        console.print()
-        console.print(
-            "[green]Done! Throne has been installed system-wide. You can find it in your applications menu![/green]",
-        )
-        console.print()
+        ui.out()
+        ui.success("Done! Throne has been installed system-wide. You can find it in your applications menu!")
+        ui.out()
 
     def uninstall(self, app_name: str, skip_check: bool = False) -> None:
-        console.print("[bold]UNINSTALL[/bold]")
+        ui.heading("UNINSTALL")
 
-        console.print()
+        ui.out()
         if not app_name:
             app_name = prompt_app_name("Enter which app (nekoray, throne): ")
-        console.print(f"\nUninstalling {app_name}...")
+        ui.info(f"\nUninstalling {app_name}...")
 
         if not skip_check and not check_installations(app_name):
-            console.print(f"[yellow]\nNo {app_name} installations found on this system.[/yellow]")
-            console.print()
+            ui.warning(f"\nNo {app_name} installations found on this system.")
+            ui.out()
             return
 
         if which("dpkg"):
             res = run_cmd(["dpkg", "-l"])
             if res.return_code == 0 and app_name in res.output_text:
-                console.print(f"Removing {app_name} .deb package...")
+                ui.info(f"Removing {app_name} .deb package...")
                 run_cmd(["sudo", "dpkg", "-r", app_name])
         if which("rpm"):
             res = run_cmd(["rpm", "-q", app_name])
             if res.return_code == 0:
-                console.print(f"Removing {app_name} .rpm package...")
+                ui.info(f"Removing {app_name} .rpm package...")
                 run_cmd(["sudo", "rpm", "-e", app_name])
 
             for variant in _get_app_variants(app_name):
@@ -435,8 +404,8 @@ class LinuxService(PlatformService):
                     if os.path.isdir(location) or os.path.isfile(location):
                         run_cmd(["sudo", "rm", "-rf", location])
 
-        console.print(f"[green]\n{app_name} installations have been removed.[/green]")
-        console.print()
+        ui.info(f"\n{app_name} installations have been removed.")
+        ui.out()
 
     def version(self, app_name: str) -> None:
         version = linux_package_version(app_name) or "unknown"
@@ -450,9 +419,9 @@ class LinuxService(PlatformService):
         ssid: str | None = None,
         password: str | None = None,
     ) -> None:
-        console.print("[bold]ENABLE HOTSPOT[/bold]")
-        console.print()
-        console.print("[green]Starting Throne Hotspot...[/green]")
+        ui.heading("ENABLE HOTSPOT")
+        ui.out()
+        ui.info("Starting Throne Hotspot...")
         dry_run = self._resolve_dry_run(dry_run)
 
         if not ensure_linux_command(
@@ -461,54 +430,52 @@ class LinuxService(PlatformService):
             "   Fedora:        sudo dnf install NetworkManager\n"
             "   Arch:          sudo pacman -S networkmanager",
         ):
-            raise typer.Exit(1)
+            raise SystemExit(1)
         if not ensure_linux_command(
             "iw",
             "   Debian/Ubuntu: sudo apt install iw\n"
             "   Fedora:        sudo dnf install iw\n"
             "   Arch:          sudo pacman -S iw",
         ):
-            raise typer.Exit(1)
+            raise SystemExit(1)
         if not ensure_linux_command(
             "nft",
             "   Debian/Ubuntu: sudo apt install nftables\n"
             "   Fedora:        sudo dnf install nftables\n"
             "   Arch:          sudo pacman -S nftables",
         ):
-            raise typer.Exit(1)
+            raise SystemExit(1)
 
         hotspot_iface = find_linux_wifi_iface(iface)
         if not hotspot_iface:
             if iface:
-                console.print(f"[red]Wi-Fi interface not found: {iface}[/red]")
+                ui.error(f"Wi-Fi interface not found: {iface}")
             else:
-                console.print("[red]No Wi-Fi interface found. Exiting.[/red]")
-            raise typer.Exit(1)
-        console.print(f"[green]Wi-Fi interface: [bold]{hotspot_iface}[/bold][/green]")
+                ui.error("No Wi-Fi interface found. Exiting.")
+            raise SystemExit(1)
+        ui.info(f"Wi-Fi interface: {hotspot_iface}")
 
         res = run_cmd(["sudo", "nft", "list", "table", "inet", LINUX_REQUIRED_INET_TABLE])
         if res.return_code != 0:
-            console.print(f"[red]Missing 'inet {LINUX_REQUIRED_INET_TABLE}' nftables table.[/red]")
-            console.print("   Please enable 'Tun Mode' in Throne/NekoRay GUI settings.")
-            raise typer.Exit(1)
+            ui.error(f"Missing 'inet {LINUX_REQUIRED_INET_TABLE}' nftables table.")
+            ui.info("   Please enable 'Tun Mode' in Throne/NekoRay GUI settings.")
+            raise SystemExit(1)
 
-        console.print("[green]Enabling Wi-Fi...[/green]")
+        ui.info("Enabling Wi-Fi...")
         run_cmd(["nmcli", "radio", "wifi", "on"], dry_run=dry_run)
 
         res = run_cmd(["iw", "dev", hotspot_iface, "info"])
         if res.return_code == 0 and "type AP" in res.output_text:
-            console.print(f"[yellow]A Wi-Fi hotspot is already active on {hotspot_iface}. Skipping creation.[/yellow]")
+            ui.warning(f"A Wi-Fi hotspot is already active on {hotspot_iface}. Skipping creation.")
             return
 
-        console.print("[green]Starting hotspot...[/green]")
+        ui.info("Starting hotspot...")
         password = password or _prompt_password()
 
         ssid = ssid or DEFAULT_SSID
 
         if dry_run:
-            console.print(
-                f'[blue]→ nmcli dev wifi hotspot ifname "{hotspot_iface}" ssid "{ssid}" password "********"[/blue]'
-            )
+            ui.hint(f'→ nmcli dev wifi hotspot ifname "{hotspot_iface}" ssid "{ssid}" password "********"')
         else:
             res = run_cmd(
                 [
@@ -525,10 +492,10 @@ class LinuxService(PlatformService):
                 ],
             )
             if res.return_code != 0:
-                console.print("[red]Failed to start hotspot — maybe AP mode is unsupported.[/red]")
-                raise typer.Exit(1)
+                ui.error("Failed to start hotspot — maybe AP mode is unsupported.")
+                raise SystemExit(1)
 
-        console.print("[green]Setting up nftables rules...[/green]")
+        ui.info("Setting up nftables rules...")
 
         table = LINUX_NFT_TABLE
         tun_iface = LINUX_TUN_IFACE
@@ -613,27 +580,27 @@ class LinuxService(PlatformService):
             dry_run=dry_run,
         )
 
-        console.print()
-        console.print("[bold green]Hotspot is ready and running![/bold green]")
-        console.print(f"SSID: {ssid}")
-        console.print(f"Password: {password}")
-        console.print()
+        ui.out()
+        ui.info("[bold green]Hotspot is ready and running![/bold green]")
+        ui.info(f"SSID: {ssid}")
+        ui.info(f"Password: {password}")
+        ui.out()
 
     def disable_hotspot(self, dry_run: bool | None = None) -> None:
-        console.print("[bold]DISABLE HOTSPOT[/bold]")
-        console.print()
+        ui.heading("DISABLE HOTSPOT")
+        ui.out()
         dry_run = self._resolve_dry_run(dry_run)
 
-        console.print("[green]Stopping hotspot...[/green]")
+        ui.info("Stopping hotspot...")
         run_cmd(["nmcli", "connection", "down", "Hotspot"], dry_run=dry_run)
         run_cmd(["nmcli", "connection", "delete", "Hotspot"], dry_run=dry_run)
 
-        console.print("[green]Removing nftables table...[/green]")
+        ui.info("Removing nftables table...")
         run_cmd(["sudo", "nft", "delete", "table", "ip", LINUX_NFT_TABLE], dry_run=dry_run)
 
-        console.print()
-        console.print("[bold green]Hotspot stopped and nftables rules removed.[/bold green]")
-        console.print()
+        ui.out()
+        ui.info("[bold green]Hotspot stopped and nftables rules removed.[/bold green]")
+        ui.out()
 
 
 class MacOSService(PlatformService):
@@ -652,12 +619,12 @@ class MacOSService(PlatformService):
         return macos_app_version(app_bundle) if app_bundle else ""
 
     def install(self) -> None:
-        console.print("[bold]INSTALLATION[/bold]")
-        console.print()
+        ui.heading("INSTALLATION")
+        ui.out()
         if not self._detect_and_guide_install():
             return
 
-        console.print(f"Fetching latest {THRONE_APP_NAME} release...")
+        ui.info(f"Fetching latest {THRONE_APP_NAME} release...")
         release = github_latest_release()
         assets = release.get("assets", [])
 
@@ -671,60 +638,58 @@ class MacOSService(PlatformService):
                 break
 
         if not target_asset:
-            console.print(f"[red]Failed to find download URL for macOS {arch}.[/red]")
-            raise typer.Exit(1)
+            ui.error(f"Failed to find download URL for macOS {arch}.")
+            raise SystemExit(1)
 
         download_url = target_asset.get("browser_download_url")
-        console.print(f"Downloading from: {download_url}")
+        ui.info(f"Downloading from: {download_url}")
 
         with TemporaryDirectory() as tmpdir:
             zip_path = os.path.join(tmpdir, f"{THRONE_APP_NAME}.zip")
             download_file(download_url, zip_path)
-            console.print("Installing...")
+            ui.info("Installing...")
             with ZipFile(zip_path, "r") as handle:
                 handle.extractall(tmpdir)
 
             app_src = os.path.join(tmpdir, THRONE_APP_NAME, f"{THRONE_APP_NAME}.app")
             if not os.path.isdir(app_src):
-                console.print("[red]Extracted app not found in archive.[/red]")
-                raise typer.Exit(1)
+                ui.error("Extracted app not found in archive.")
+                raise SystemExit(1)
 
             try:
                 move(app_src, "/Applications/")
             except PermissionError:
-                console.print(
-                    "[red]Permission denied while moving app to /Applications. Run this script with sudo.[/red]",
-                )
-                raise typer.Exit(1) from None
+                ui.error("Permission denied while moving app to /Applications. Run this script with sudo.")
+                raise SystemExit(1) from None
 
-        console.print()
-        console.print(f"[green]Done! {THRONE_APP_NAME} has been installed to /Applications.[/green]")
-        console.print(f"[green]You can now launch '{THRONE_APP_NAME}' from Spotlight or Launchpad.[/green]")
-        console.print()
+        ui.out()
+        ui.info(f"Done! {THRONE_APP_NAME} has been installed to /Applications.")
+        ui.info(f"You can now launch '{THRONE_APP_NAME}' from Spotlight or Launchpad.")
+        ui.out()
 
     def uninstall(self, app_name: str, skip_check: bool = False) -> None:
-        console.print("[bold]UNINSTALL[/bold]")
-        console.print()
+        ui.heading("UNINSTALL")
+        ui.out()
         if not app_name:
             app_name = prompt_app_name()
         prefs_dir = os.path.join(os.path.expanduser("~"), "Library/Preferences", app_name)
         app_bundle = f"/Applications/{app_name}.app"
 
-        console.print(f"\nUninstalling {app_name}...")
+        ui.info(f"\nUninstalling {app_name}...")
         if os.path.isdir(prefs_dir):
-            console.print(f"Removing preferences: {prefs_dir}")
+            ui.info(f"Removing preferences: {prefs_dir}")
             run_cmd(["sudo", "rm", "-rvf", prefs_dir])
         else:
-            console.print(f"No preferences folder found at: {prefs_dir}")
+            ui.info(f"No preferences folder found at: {prefs_dir}")
 
         if os.path.isdir(app_bundle):
-            console.print(f"Removing app bundle: {app_bundle}")
+            ui.info(f"Removing app bundle: {app_bundle}")
             run_cmd(["sudo", "rm", "-rvf", app_bundle])
         else:
-            console.print(f"No app found at: {app_bundle}")
+            ui.info(f"No app found at: {app_bundle}")
 
-        console.print(f"[green]\n{app_name} has been successfully uninstalled.[/green]")
-        console.print()
+        ui.success(f"\n{app_name} has been successfully uninstalled.")
+        ui.out()
 
     def version(self, app_name: str) -> None:
         app_bundle = macos_app_bundle(app_name)
@@ -738,35 +703,35 @@ class MacOSService(PlatformService):
         ssid: str | None = None,
         password: str | None = None,
     ) -> None:
-        console.print("[bold]ENABLE HOTSPOT[/bold]")
-        console.print()
-        console.print("[green]Starting Throne Hotspot (best-effort on macOS)...[/green]")
+        ui.heading("ENABLE HOTSPOT")
+        ui.out()
+        ui.info("Starting Throne Hotspot (best-effort on macOS)...")
 
         dry_run = self._resolve_dry_run(dry_run)
 
         if not which("networksetup"):
-            console.print("[red]'networksetup' not found. macOS hotspot is unavailable.[/red]")
-            raise typer.Exit(1)
+            ui.error("'networksetup' not found. macOS hotspot is unavailable.")
+            raise SystemExit(1)
 
         airport_tool = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
         if not os.path.exists(airport_tool):
-            console.print("[red]'airport' tool not found. macOS hotspot is unavailable.[/red]")
-            raise typer.Exit(1)
+            ui.error("'airport' tool not found. macOS hotspot is unavailable.")
+            raise SystemExit(1)
 
         if not iface:
             iface = detect_macos_wifi_iface()
         if not iface:
-            console.print("[red]Wi-Fi interface not found on macOS.[/red]")
-            raise typer.Exit(1)
+            ui.error("Wi-Fi interface not found on macOS.")
+            raise SystemExit(1)
 
         ssid = ssid or DEFAULT_SSID
 
         password = password or _prompt_password()
 
-        console.print("[green]Enabling Wi-Fi...[/green]")
+        ui.info("Enabling Wi-Fi...")
         run_cmd(["networksetup", "-setairportpower", iface, "on"], dry_run=dry_run)
 
-        console.print("[green]Attempting to create hotspot...[/green]")
+        ui.info("Attempting to create hotspot...")
         create_cmd = [airport_tool, "--create", ssid, password]
         if dry_run:
             run_cmd(create_cmd, dry_run=True)
@@ -774,44 +739,44 @@ class MacOSService(PlatformService):
         else:
             res = run_cmd(create_cmd)
         if res.return_code != 0:
-            console.print("[yellow]Failed to create hotspot via 'airport'.[/yellow]")
-            console.print("   macOS hotspot setup can require manual configuration.")
+            ui.warning("Failed to create hotspot via 'airport'.")
+            ui.info("   macOS hotspot setup can require manual configuration.")
 
         sharing_plist = "/System/Library/LaunchDaemons/com.apple.InternetSharing.plist"
         if os.path.exists(sharing_plist):
-            console.print("[green]Attempting to enable Internet Sharing...[/green]")
+            ui.info("Attempting to enable Internet Sharing...")
             run_cmd(
                 ["sudo", "launchctl", "load", "-w", sharing_plist],
                 dry_run=dry_run,
             )
         else:
-            console.print("[yellow]Internet Sharing plist not found.[/yellow]")
+            ui.warning("Internet Sharing plist not found.")
 
-        console.print()
-        console.print("[bold green]Hotspot command completed (best-effort).[/bold green]")
-        console.print(f"SSID: {ssid}")
-        console.print(f"Password: {password}")
-        console.print("Verify in System Settings → General → Sharing → Internet Sharing.")
-        console.print()
+        ui.out()
+        ui.info("[bold green]Hotspot command completed (best-effort).[/bold green]")
+        ui.info(f"SSID: {ssid}")
+        ui.info(f"Password: {password}")
+        ui.info("Verify in System Settings → General → Sharing → Internet Sharing.")
+        ui.out()
 
     def disable_hotspot(self, dry_run: bool | None = None) -> None:
-        console.print("[bold]DISABLE HOTSPOT[/bold]")
-        console.print()
+        ui.heading("DISABLE HOTSPOT")
+        ui.out()
         dry_run = self._resolve_dry_run(dry_run)
 
         sharing_plist = "/System/Library/LaunchDaemons/com.apple.InternetSharing.plist"
         if os.path.exists(sharing_plist):
-            console.print("[green]Attempting to disable Internet Sharing...[/green]")
+            ui.info("Attempting to disable Internet Sharing...")
             run_cmd(
                 ["sudo", "launchctl", "unload", "-w", sharing_plist],
                 dry_run=dry_run,
             )
         else:
-            console.print("[yellow]Internet Sharing plist not found.[/yellow]")
+            ui.warning("Internet Sharing plist not found.")
 
-        console.print()
-        console.print("[bold green]Hotspot stop command completed (best-effort).[/bold green]")
-        console.print()
+        ui.out()
+        ui.info("[bold green]Hotspot stop command completed (best-effort).[/bold green]")
+        ui.out()
 
 
 class WindowsService(PlatformService):
@@ -832,54 +797,54 @@ class WindowsService(PlatformService):
         return windows_exe_version(exe_path) if exe_path else ""
 
     def install(self) -> None:
-        console.print("[bold]INSTALLATION[/bold]")
-        console.print()
+        ui.heading("INSTALLATION")
+        ui.out()
         if not self._detect_and_guide_install():
             return
 
-        console.print("Fetching latest Throne release...")
+        ui.info("Fetching latest Throne release...")
 
         release = github_latest_release()
         assets = release.get("assets", [])
         target_asset = find_windows_installer_asset(assets)
 
         if not target_asset:
-            console.print("[red]No Windows installer found in the latest release.[/red]")
-            raise typer.Exit(1)
+            ui.error("No Windows installer found in the latest release.")
+            raise SystemExit(1)
 
         installer_url = target_asset.get("browser_download_url", "")
         installer_name = target_asset.get("name", "")
         temp_dir = gettempdir()
         installer_path = os.path.join(temp_dir, "throne_installer.exe")
 
-        console.print(f"Found installer: {installer_name}")
-        console.print("Downloading Throne installer...")
+        ui.info(f"Found installer: {installer_name}")
+        ui.info("Downloading Throne installer...")
         download_file(installer_url, installer_path)
 
         if os.path.isfile(installer_path):
-            console.print(f"Download completed: {installer_path}")
-            console.print("Launching installer...")
+            ui.info(f"Download completed: {installer_path}")
+            ui.info("Launching installer...")
             try:
                 Popen([installer_path], shell=False)  # noqa: S603
             except OSError as exc:
-                console.print(f"[red]Failed to launch installer: {exc}[/red]")
-                raise typer.Exit(1) from exc
-            console.print("Installer launched. Exiting.")
+                ui.error(f"Failed to launch installer: {exc}")
+                raise SystemExit(1) from exc
+            ui.info("Installer launched. Exiting.")
         else:
-            console.print("[red]Download failed.[/red]")
-            raise typer.Exit(1)
+            ui.error("Download failed.")
+            raise SystemExit(1)
 
     def uninstall(self, app_name: str, skip_check: bool = False) -> None:
-        console.print("[bold]UNINSTALL[/bold]")
-        console.print()
+        ui.heading("UNINSTALL")
+        ui.out()
         if not app_name:
             app_name = prompt_app_name("Enter which app (nekoray, throne): ")
 
-        console.print(f"\nUninstalling {app_name}...")
+        ui.info(f"\nUninstalling {app_name}...")
         base_dir = windows_config_base(app_name)
         config_dir = os.path.join(base_dir, "config") if base_dir else ""
         if config_dir and os.path.isdir(config_dir):
-            console.print(f"Removing config: {config_dir}")
+            ui.info(f"Removing config: {config_dir}")
             rmtree(config_dir)
 
         local_appdata = os.environ.get("LOCALAPPDATA", "")
@@ -902,19 +867,19 @@ class WindowsService(PlatformService):
 
         uninstallers = [path for path in uninstallers if path and os.path.isfile(path)]
         if uninstallers:
-            console.print(f"Launching uninstaller: {uninstallers[0]}")
+            ui.info(f"Launching uninstaller: {uninstallers[0]}")
             try:
                 Popen([uninstallers[0]], shell=False)  # noqa: S603
             except OSError as exc:
-                console.print(f"[red]Failed to launch uninstaller: {exc}[/red]")
-                console.print("Please uninstall using Windows Apps & Features.")
-                raise typer.Exit(1) from exc
+                ui.error(f"Failed to launch uninstaller: {exc}")
+                ui.info("Please uninstall using Windows Apps & Features.")
+                raise SystemExit(1) from exc
         else:
-            console.print("[yellow]Uninstaller not found.[/yellow]")
-            console.print("Please uninstall using Windows Apps & Features.")
+            ui.warning("Uninstaller not found.")
+            ui.info("Please uninstall using Windows Apps & Features.")
 
-        console.print(f"[green]\n{app_name} uninstall steps completed.[/green]")
-        console.print()
+        ui.info(f"\n{app_name} uninstall steps completed.")
+        ui.out()
 
     def version(self, app_name: str) -> None:
         candidates = windows_exe_candidates(app_name)
@@ -923,23 +888,18 @@ class WindowsService(PlatformService):
         _show_version_table(app_name, version, exe_path or "not found")
 
 
-def show_banner(platform_name) -> None:
-    console.print(BANNER, style="cyan")
-    console.print(f"[bold]{THRONE_APP_NAME} Tools for {platform_name}[/bold]")
-
-
 def prompt_app_name(prompt_text: str | None = None) -> str:
-    app_name = Prompt.ask(prompt_text or PROMPT_APP_TEXT).strip().lower()
+    app_name = ui.ask(prompt_text or PROMPT_APP_TEXT).strip().lower()
     if app_name not in {"nekoray", "throne"}:
-        console.print("[red]Invalid app name. Only 'nekoray' or 'throne' allowed.[/red]")
-        raise typer.Exit(1)
+        ui.error("Invalid app name. Only 'nekoray' or 'throne' allowed.")
+        raise SystemExit(1)
     return app_name
 
 
 def run_cmd(cmd: str | list[str], dry_run: bool = False, shell: bool = False) -> CMDOutput:
     if dry_run:
         cmd_str = " ".join(cmd) if isinstance(cmd, list) else cmd
-        console.print(f"[blue]{cmd_str}[/blue]")
+        ui.hint(f"{cmd_str}")
         return CMDOutput(output_text="", error_text="", return_code=0)
     if shell or isinstance(cmd, str):
         result = subprocess_run(cmd, shell=shell, capture_output=True, text=True)  # noqa: S603
@@ -971,24 +931,24 @@ def check_installations(app_name: str) -> bool:
     if which("dpkg"):
         res = run_cmd(["dpkg", "-l"])
         if res.return_code == 0 and app_name in res.output_text:
-            console.print(f"[yellow]{app_name} package is installed.[/yellow]")
+            ui.warning(f"{app_name} package is installed.")
             found = True
     if which("rpm"):
         res = run_cmd(["rpm", "-q", app_name])
         if res.return_code == 0:
-            console.print(f"[yellow]{app_name} package is installed.[/yellow]")
+            ui.warning(f"{app_name} package is installed.")
             found = True
 
     for variant in _get_app_variants(app_name):
         for location in _linux_variant_paths(variant):
             if os.path.isdir(location) or os.path.isfile(location):
-                console.print(f"[yellow]Found system installation: {location}[/yellow]")
+                ui.warning(f"Found system installation: {location}")
                 found = True
     return found
 
 
 def github_latest_release() -> dict:
-    req = Request(  # noqa: S310
+    req = Request(
         THRONE_URL,
         headers={
             "Accept": "application/vnd.github+json",
@@ -1005,13 +965,7 @@ def download_file(url: str, dest_path: str) -> None:
     with (
         urlopen(req, timeout=HTTP_TIMEOUT) as response,  # noqa: S310
         open(dest_path, "wb") as handle,
-        Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
-        ) as progress,
     ):
-        progress.add_task("[cyan]Downloading...", total=None)
         while True:
             chunk = response.read(1024 * 1024)
             if not chunk:
@@ -1044,9 +998,9 @@ def zip_dir(source_dir: str, dest_zip: str) -> None:
 def ensure_linux_command(cmd: str, hint: str | None = None) -> bool:
     if which(cmd):
         return True
-    console.print(f"[red]'{cmd}' command not found. Please install it.[/red]")
+    ui.error(f"'{cmd}' command not found. Please install it.")
     if hint:
-        console.print(hint)
+        ui.hint(hint)
     return False
 
 
@@ -1235,32 +1189,15 @@ def detect_installed_apps() -> set[str]:
 
 def _prompt_password(min_length: int = MIN_PASSWORD_LENGTH) -> str:
     while True:
-        _pw_prompt = f"\n[bold]Enter hotspot password (min {min_length} chars)[/bold]"
-        password = Prompt.ask(_pw_prompt, password=True)
+        _pw_prompt = f"Hotspot password (min {min_length} chars)"
+        password = ui.ask(_pw_prompt, secret=True)
         if len(password) >= min_length:
             return password
-        console.print(f"[red]Password must be at least {min_length} characters.[/red]")
-
-
-_THRONETOOLS_VERSION: str | None = None
-
-
-def _get_thronetools_version() -> str:
-    global _THRONETOOLS_VERSION
-    if _THRONETOOLS_VERSION is None:
-        _THRONETOOLS_VERSION = pkg_version("thronetools")
-    return _THRONETOOLS_VERSION
+        ui.error(f"Password must be at least {min_length} characters.")
 
 
 def _show_version_table(app_name: str, version: str, install_path: str) -> None:
-    table = Table(show_header=False, box=box.SIMPLE)
-    table.add_column("Property", style="cyan")
-    table.add_column("Value")
-    table.add_row("App", app_name)
-    table.add_row("Version", version or "unknown")
-    table.add_row("ThroneTools", _get_thronetools_version())
-    table.add_row("Install path", install_path or "not found")
-    console.print(table)
+    ui.table([("App", app_name), ("Version", version or "unknown"), ("Install path", install_path or "not found")])
 
 
 def get_service() -> PlatformService:
@@ -1271,178 +1208,131 @@ def get_service() -> PlatformService:
         return MacOSService()
     if sys_platform.startswith("win"):
         return WindowsService()
-    console.print("[red]Unsupported platform. This tool supports Linux, macOS, and Windows.[/red]")
-    raise typer.Exit(1)
+    ui.error("Unsupported platform. This tool supports Linux, macOS, and Windows.")
+    raise SystemExit(1)
 
 
-class StyledGroup(typer.core.TyperGroup):
-    def format_help(self, ctx: typer.Context, formatter: object) -> None:
-        show_styled_help(ctx)
-
-
-def show_styled_help(ctx: typer.Context) -> None:
-    group = ctx.parent.command if ctx.parent is not None else ctx.command
-    cmd_path = ctx.parent.command_path if ctx.parent is not None else ctx.command_path
-
-    console.print("[bold]Usage:[/bold]")
-    console.print(f"  {cmd_path} [OPTIONS] COMMAND [ARGS]...\n")
-
-    commands = group.commands
-    if commands:
-        console.print("[bold]Commands:[/bold]")
-        table = Table(show_header=False, box=box.SIMPLE, padding=0)
-        table.add_column("Command", style="cyan", no_wrap=True)
-        table.add_column("Description")
-        for name, cmd in sorted(commands.items()):
-            if cmd.hidden:
-                continue
-            short_help = cmd.get_short_help_str(limit=60)
-            table.add_row(f"  {name}", short_help)
-        console.print(table)
-        console.print()
-
-    console.print("[bold]Options:[/bold]")
-    table = Table(show_header=False, box=box.SIMPLE, padding=0)
-    table.add_column("Option", style="cyan", no_wrap=True)
-    table.add_column("Description")
-    for param in group.params:
-        if param.name in ("help", "install_completion", "show_completion"):
-            continue
-        opts = ", ".join(param.opts)
-        help_text = param.help or ""
-        table.add_row(f"  {opts}", help_text)
-    table.add_row("  -h/--help", "Show this message and exit")
-    console.print(table)
-
-
-app = typer.Typer(
-    name="thronetools",
-    cls=StyledGroup,
-    context_settings={"help_option_names": ["--help", "-h"]},
+APP_ARG = Arg("--app", default="throne", choices=["throne", "nekoray"], help="throne or nekoray")
+cli = App(
+    "thronetools",
+    repo="https://github.com/arian24b/thronetools",
+    description="Install, back up, restore and manage Throne / NekoRay, plus a Wi-Fi hotspot helper.",
 )
 
 
-@app.callback(invoke_without_command=True)
-def master(ctx: typer.Context) -> None:
-    if ctx.invoked_subcommand is None:
-        show_styled_help(ctx)
-        raise typer.Exit()
-
-
-@app.command()
-def install() -> None:
-    """Install Throne."""
+@cli.command("install", "Install Throne", banner=True)
+def install(a) -> None:
     get_service().install()
 
 
-@app.command()
-def backup(
-    app: str = typer.Option("throne", "--app", help="throne or nekoray"),
-    output: str | None = typer.Option(None, "--output", help="Output directory or file path"),
-) -> None:
-    """Backup configuration."""
-    get_service().backup(app_name=app, output_path=output)
+@cli.command(
+    "backup",
+    "Backup configuration",
+    args=[APP_ARG, Arg("--output", help="Output directory or file path")],
+)
+def backup(a) -> None:
+    get_service().backup(app_name=a.app, output_path=a.output)
 
 
-@app.command()
-def restore(
-    app: str = typer.Option(..., "--app", help="throne or nekoray"),
-    zip_file: str = typer.Option(..., "--zip", help="Path to backup .zip file"),
-) -> None:
-    """Restore configuration."""
-    get_service().restore(app_name=app, zip_file=zip_file)
+@cli.command(
+    "restore",
+    "Restore configuration",
+    args=[
+        Arg("--app", required=True, choices=["throne", "nekoray"], prompt="Which app", help="throne or nekoray"),
+        Arg(
+            "--zip",
+            required=True,
+            dest="zip_file",
+            prompt="Path to the backup .zip file",
+            help="Path to backup .zip file",
+        ),
+    ],
+)
+def restore(a) -> None:
+    get_service().restore(app_name=a.app, zip_file=a.zip_file)
 
 
-@app.command()
-def remove(
-    app: str | None = typer.Option(None, "--app", help="throne or nekoray"),
-) -> None:
-    """Uninstall Throne or NekoRay."""
-    service = get_service()
-    if not app:
+@cli.command(
+    "remove",
+    "Uninstall Throne or NekoRay",
+    args=[Arg("--app", choices=["throne", "nekoray"], help="throne or nekoray")],
+)
+def remove(a) -> None:
+    app_name = a.app
+    if not app_name:
         installed = detect_installed_apps()
         if not installed:
-            console.print("[yellow]No Throne or NekoRay installations found.[/yellow]")
-            raise typer.Exit()
+            ui.warning("No Throne or NekoRay installations found.")
+            return
         if len(installed) == 1:
-            app = installed.pop()
+            app_name = installed.pop()
         else:
-            console.print("[yellow]Multiple apps detected. Which one to remove?[/yellow]")
-            app = prompt_app_name()
-    service.uninstall(app_name=app)
+            ui.warning("Multiple apps detected. Which one to remove?")
+            app_name = prompt_app_name()
+    get_service().uninstall(app_name=app_name)
 
 
-@app.command()
-def reinstall(
-    app: str = typer.Option(..., "--app", help="throne or nekoray"),
-    backup: bool = typer.Option(False, "--backup", help="Backup config before reinstall"),
-    output: str | None = typer.Option(None, "--output", help="Backup output path"),
-    force: bool = typer.Option(False, "--force", help="Proceed even if not installed"),
-) -> None:
-    """Reinstall Throne."""
-    get_service().reinstall(app_name=app, backup=backup, output_path=output, force=force)
+@cli.command(
+    "reinstall",
+    "Reinstall Throne",
+    args=[
+        Arg("--app", required=True, choices=["throne", "nekoray"], prompt="Which app", help="throne or nekoray"),
+        Arg("--backup", action="store_true", help="Backup config before reinstall"),
+        Arg("--output", help="Backup output path"),
+        Arg("--force", action="store_true", help="Proceed even if not installed"),
+    ],
+)
+def reinstall(a) -> None:
+    get_service().reinstall(app_name=a.app, backup=a.backup, output_path=a.output, force=a.force)
 
 
-@app.command()
-def version(
-    app: str = typer.Option("throne", "--app", help="throne or nekoray"),
-) -> None:
-    """Show installed version and path."""
-    get_service().version(app_name=app)
+@cli.command("app-version", "Show installed Throne/NekoRay version and path", args=[APP_ARG])
+def app_version(a) -> None:
+    get_service().version(app_name=a.app)
 
 
-@app.command()
-def update(
-    app: str = typer.Option("throne", "--app", help="throne or nekoray"),
-) -> None:
-    """Update Throne to the latest version."""
-    get_service().update(app_name=app)
+@cli.command("app-update", "Update Throne/NekoRay to the latest version", args=[APP_ARG])
+def app_update(a) -> None:
+    get_service().update(app_name=a.app)
 
 
-@app.command()
-def geo_install(
-    app: str = typer.Option("throne", "--app", help="throne or nekoray"),
-) -> None:
-    """Install geoip and geosite files."""
+@cli.command("geo-install", "Install geoip and geosite files", args=[APP_ARG])
+def geo_install(a) -> None:
     get_service().install_geo()
 
 
-hotspot_app = typer.Typer(help="Hotspot controls (Linux/macOS only)")
-
-
-@hotspot_app.command("enable")
-def hotspot_enable(
-    dry_run: bool = typer.Option(False, "--dry-run", help="Run without making changes"),
-    iface: str | None = typer.Option(None, "--iface", help="Wi-Fi interface"),
-    ssid: str | None = typer.Option(None, "--ssid", help="Hotspot SSID"),
-    password: str | None = typer.Option(None, "--password", help="Hotspot password (min 8 chars)"),
-) -> None:
-    """Enable hotspot."""
+def _hotspot_service():
     service = get_service()
     if not isinstance(service, (LinuxService, MacOSService)):
-        console.print("[red]Hotspot commands are supported on Linux/macOS only.[/red]")
-        raise typer.Exit(1)
-    service.enable_hotspot(dry_run=dry_run, iface=iface, ssid=ssid, password=password)
+        raise Fail("Hotspot commands are supported on Linux/macOS only.")
+    return service
 
 
-@hotspot_app.command("disable")
-def hotspot_disable(
-    dry_run: bool = typer.Option(False, "--dry-run", help="Run without making changes"),
-) -> None:
-    """Disable hotspot."""
-    service = get_service()
-    if not isinstance(service, (LinuxService, MacOSService)):
-        console.print("[red]Hotspot commands are supported on Linux/macOS only.[/red]")
-        raise typer.Exit(1)
-    service.disable_hotspot(dry_run=dry_run)
+hotspot = cli.group("hotspot", "Hotspot controls (Linux/macOS only)")
+DRY_RUN = Arg("--dry-run", action="store_true", help="Run without making changes")
 
 
-app.add_typer(hotspot_app, name="hotspot")
+@hotspot.command(
+    "enable",
+    "Enable hotspot",
+    args=[
+        DRY_RUN,
+        Arg("--iface", help="Wi-Fi interface"),
+        Arg("--ssid", help="Hotspot SSID"),
+        Arg("--password", help="Hotspot password (min 8 chars)"),
+    ],
+)
+def hotspot_enable(a) -> None:
+    _hotspot_service().enable_hotspot(dry_run=a.dry_run, iface=a.iface, ssid=a.ssid, password=a.password)
+
+
+@hotspot.command("disable", "Disable hotspot", args=[DRY_RUN])
+def hotspot_disable(a) -> None:
+    _hotspot_service().disable_hotspot(dry_run=a.dry_run)
 
 
 def main() -> None:
-    show_banner(get_service().platform_name)
-    app()
+    cli.main()
 
 
 if __name__ == "__main__":
