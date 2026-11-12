@@ -1,19 +1,19 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 
 [[package]]
 name = "cfuicli"
-version = "1.0.0"
+version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f9/65/41c351ce04555febc3ce8be6e8ad22f4b295f84fac75d14b992d2f6557b7/cfuicli-1.0.0.tar.gz", hash = "sha256:5ac86aa37f81a28a50480f8da5948226d8438e3c19cfcf9d30bf9ca9f0251580", size = 82138, upload-time = "2026-10-11T18:42:19.618Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/65/44/b248297499a4bb345a8f7497274a278c1e938135227f0e0f96ec1471852f/cfuicli-1.1.0.tar.gz", hash = "sha256:83640ac7e8aaa35c057a5d5c404c7b262c75f5e51abe68dcfa78c35545e96d1e", size = 73111, upload-time = "2026-10-12T04:24:39.966Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4c/c0/2b4d39ec9ac642c58bf4a49ac999e0c0bd76bdb18866ca1e2ea95b6c78d0/cfuicli-1.0.0-py3-none-any.whl", hash = "sha256:71bedf0b8f56cdc881cbfdd711086d0b38d8ded055dec73e2d59cadc82188748", size = 11961, upload-time = "2026-10-11T18:42:18.641Z" },
+    { url = "https://files.pythonhosted.org/packages/03/0c/bdf441eba3267d8be1b0c03ef39cf04efb57ec45571eaaf263728008eef8/cfuicli-1.1.0-py3-none-any.whl", hash = "sha256:ecf7dfdd1012697a10d1fbf41b6ec7f66858f42d3118055ac4310ed58d7cde69", size = 19147, upload-time = "2026-10-12T04:24:38.953Z" },
 ]
 
 [[package]]
 name = "thronetools"
-version = "1.1.3"
+version = "1.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "cfuicli" },
